@@ -35,7 +35,7 @@ To run your SCUM server as a Windows service using NSSM:
    - **Startup directory:**
      - `C:\SCUM\server\SCUM\Binaries\Win64`
    - **Arguments like you want, ex.:**
-     - `port=XXXX -log` 
+     - `-port=XXXX -log` 
    - **Service name:**
      - `SCUMSERVER` (or your chosen name, must match config)
 
