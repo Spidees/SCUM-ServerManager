@@ -1,0 +1,16 @@
+{
+  "serviceName": "SCUMSERVER",
+  "backupRoot": "./backups",
+  "savedDir": "./server/SCUM/Saved",
+  "steamCmd": "./steamcmd/steamcmd.exe",
+  "serverDir": "./server",
+  "appId": "3792580",
+  "discordWebhook": "",
+  "restartTimes": ["02:00", "12:00", "18:00", "00:00"],
+  "backupIntervalMinutes": 60,
+  "updateCheckIntervalMinutes": 10,
+  "maxBackups": 10,
+  "compressBackups": true,
+  "runBackupOnStart": true,
+  "runUpdateOnStart": true
+}
