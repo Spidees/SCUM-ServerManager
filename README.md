@@ -29,7 +29,7 @@ To run your SCUM server as a Windows service using NSSM:
    ```
    nssm.exe install SCUMSERVER
    ```
-2. In the NSSM service editor, set the following:
+2. In the NSSM service editor, set the following (see screenshots below for reference):
    - **Path:**
      - `C:\SCUM\server\SCUM\Binaries\Win64\SCUMServer.exe` (adjust to your actual path)
    - **Startup directory:**
@@ -39,11 +39,37 @@ To run your SCUM server as a Windows service using NSSM:
    - **Service name:**
      - `SCUMSERVER` (or your chosen name, must match config)
 
-3. Other settings:
+3. Other settings (see screenshots):
    - **Log on:** Local System account, allow service to interact with desktop.
    - **Process:** Priority = Realtime, Console window checked, All processors selected.
-   - **Shutdown:** Generate Control-C, Terminate process, timeouts 300000ms.
+   - **Shutdown:** Generate Control-C, Terminate process, timeouts as shown.
    - **Exit actions:** No action (srvany compatible), delay restart by 3000 ms.
+
+4. Click "Install service" to save.
+
+5. Start the service from Windows Services or with:
+   ```
+   net start SCUMSERVER
+   ```
+
+### NSSM Configuration Screenshots
+
+Below are example screenshots for each NSSM tab:
+
+**Application Tab**
+![NSSM Application Tab](https://playhub.cz/scum/manager/nssm1.png)
+
+**Log On Tab**
+![NSSM Log On Tab](https://playhub.cz/scum/manager/nssm2.png)
+
+**Process Tab**
+![NSSM Process Tab](https://playhub.cz/scum/manager/nssm3.png)
+
+**Shutdown Tab**
+![NSSM Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png)
+
+**Exit Actions Tab**
+![NSSM Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png)
 
 ---
 # SCUM Server Automation – Guide
