@@ -23,6 +23,8 @@ SCUM
 
 # NSSM Service Setup
 
+You will need NSSM (the Non-Sucking Service Manager). Download it here: [https://nssm.cc/download](https://nssm.cc/download)
+
 To run your SCUM server as a Windows service using NSSM:
 
 1. Open a command prompt as administrator in the SCUM folder and run:
@@ -50,6 +52,11 @@ To run your SCUM server as a Windows service using NSSM:
 5. Start the service from Windows Services or with:
    ```
    net start SCUMSERVER
+   ```
+   
+   To stop the service, use:
+   ```
+   net stop SCUMSERVER
    ```
 
 ### NSSM Configuration Screenshots
