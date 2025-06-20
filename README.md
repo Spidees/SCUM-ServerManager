@@ -1,3 +1,45 @@
+# Directory Structure
+
+Recommended folder structure for SCUM server automation:
+
+SCUM
+│   SCUMServer.ps1
+│   SCUMServer.config.json
+│   nssm.exe
+├── server
+├── steamcmd
+└── backups
+
+- Place all files and folders as shown above in a main folder (e.g., `C:/Users/yourname/Desktop/SCUM`).
+- The `server` folder contains your SCUM dedicated server files.
+- The `steamcmd` folder contains SteamCMD.
+- `nssm.exe`, `SCUMServer.ps1`, and `SCUMServer.config.json` should be in the root of the SCUM folder.
+
+# NSSM Service Setup
+
+To run your SCUM server as a Windows service using NSSM:
+
+1. Open a command prompt as administrator in the SCUM folder and run:
+   ```
+   nssm.exe install SCUMSERVER
+   ```
+2. In the NSSM service editor, set the following:
+   - **Path:**
+     - `C:\SCUM\server\SCUM\Binaries\Win64\SCUMServer.exe` (adjust to your actual path)
+   - **Startup directory:**
+     - `C:\SCUM\server\SCUM\Binaries\Win64`
+   - **Arguments like you want, ex.:**
+     - `port=XXXX -log` 
+   - **Service name:**
+     - `SCUMSERVER` (or your chosen name, must match config)
+
+3. Other settings:
+   - **Log on:** Local System account, allow service to interact with desktop.
+   - **Process:** Priority = Realtime, Console window checked, All processors selected.
+   - **Shutdown:** Generate Control-C, Terminate process, timeouts 300000ms.
+   - **Exit actions:** No action (srvany compatible), delay restart by 3000 ms.
+
+---
 # SCUM Server Automation – Guide
 
 This script automates the management of a SCUM dedicated server on Windows (backups, updates, restarts, Discord notifications, logging). Everything is controlled via the `SCUMServer.config.json` configuration file.
