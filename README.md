@@ -57,18 +57,23 @@ To run your SCUM server as a Windows service using NSSM:
 Below are example screenshots for each NSSM tab:
 
 **Application Tab**
+
 ![NSSM Application Tab](https://playhub.cz/scum/manager/nssm1.png)
 
 **Log On Tab**
+
 ![NSSM Log On Tab](https://playhub.cz/scum/manager/nssm2.png)
 
 **Process Tab**
+
 ![NSSM Process Tab](https://playhub.cz/scum/manager/nssm3.png)
 
 **Shutdown Tab**
+
 ![NSSM Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png)
 
 **Exit Actions Tab**
+
 ![NSSM Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png)
 
 ---
