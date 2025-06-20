@@ -12,7 +12,7 @@ SCUM
 └── backups
 ```
 
-- Place all files and folders as shown above in a main folder (e.g., `C:/Users/yourname/Desktop/SCUM`).
+- Place all files and folders as shown above in a main folder (e.g., `C:/SCUM`).
 - The `server` folder contains your SCUM dedicated server files.
 - The `steamcmd` folder contains SteamCMD.
 - `nssm.exe`, `SCUMServer.ps1`, and `SCUMServer.config.json` should be in the root of the SCUM folder.
