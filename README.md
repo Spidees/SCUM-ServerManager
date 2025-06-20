@@ -1,3 +1,7 @@
+# SCUM Server Automation
+
+This project provides a complete automation solution for running a SCUM dedicated server on Windows. It handles automatic updates, scheduled restarts, regular backups (with compression and retention), Discord notifications, robust logging, and auto-recovery. The server runs as a Windows service managed by NSSM, and all automation is fully configurable via a JSON file.
+
 # Directory Structure
 
 Recommended folder structure for SCUM server automation:
@@ -68,7 +72,7 @@ Open `SCUMServer.config.json` and adjust as needed:
 
 ## 2. Running the Script
 
-1. Make sure your server is running as a service via NSSM (see: https://nssm.cc/usage).
+1. Make sure your server is running as a service via NSSM (see: above # NSSM Service Setup).
 2. Run the PowerShell script `SCUMServer.ps1` as administrator. (Tested and recommended for proper operation.)
 3. The script will automatically perform backups, updates, restarts, and send notifications according to the config.
 
