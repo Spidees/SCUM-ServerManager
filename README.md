@@ -2,6 +2,7 @@
 
 Recommended folder structure for SCUM server automation:
 
+```
 SCUM
 │   SCUMServer.ps1
 │   SCUMServer.config.json
@@ -9,6 +10,7 @@ SCUM
 ├── server
 ├── steamcmd
 └── backups
+```
 
 - Place all files and folders as shown above in a main folder (e.g., `C:/Users/yourname/Desktop/SCUM`).
 - The `server` folder contains your SCUM dedicated server files.
