@@ -21,6 +21,12 @@ SCUM
 - The `steamcmd` folder contains SteamCMD.
 - `nssm.exe`, `SCUMServer.ps1`, and `SCUMServer.config.json` should be in the root of the SCUM folder.
 
+# SteamCMD Setup
+
+You will need SteamCMD to update and manage your SCUM server. Download it here: [https://developer.valvesoftware.com/wiki/SteamCMD#Downloading_SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD#Downloading_SteamCMD)
+
+- Extract the contents of the SteamCMD download into the `steamcmd` folder inside your main SCUM directory.
+
 # NSSM Service Setup
 
 You will need NSSM (the Non-Sucking Service Manager). Download it here: [https://nssm.cc/download](https://nssm.cc/download)
