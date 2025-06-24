@@ -76,6 +76,10 @@ Below are example screenshots for each NSSM tab:
 
 ![NSSM Application Tab](https://playhub.cz/scum/manager/nssm1.png)
 
+**Details Tab**
+
+![NSSM Details Tab](https://playhub.cz/scum/manager/nssm6.png)
+
 **Log On Tab**
 
 ![NSSM Log On Tab](https://playhub.cz/scum/manager/nssm2.png)
