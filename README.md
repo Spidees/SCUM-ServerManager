@@ -10,6 +10,8 @@ Recommended folder structure for SCUM server automation:
 SCUM
 │   SCUMServer.ps1
 │   SCUMServer.config.json
+│   startserver.bat
+│   stopserver.bat
 │   nssm.exe
 ├── server
 ├── steamcmd
@@ -19,7 +21,7 @@ SCUM
 - Place all files and folders as shown above in a main folder (e.g., `C:/SCUM`).
 - The `server` folder contains your SCUM dedicated server files.
 - The `steamcmd` folder contains SteamCMD.
-- `nssm.exe`, `SCUMServer.ps1`, and `SCUMServer.config.json` should be in the root of the SCUM folder.
+- `SCUMServer.ps1`, `SCUMServer.config.json`, `startserver.bat`, `stopserver.bat`, and `nssm.exe` should be in the root of the SCUM folder.
 
 # SteamCMD Setup
 
@@ -49,8 +51,9 @@ To run your SCUM server as a Windows service using NSSM:
 
 3. Other settings (see screenshots):
    - **Log on:** Local System account, allow service to interact with desktop.
+   - **Details:** Startup type = Manual.
    - **Process:** Priority = Realtime, Console window checked, All processors selected.
-   - **Shutdown:** Generate Control-C, Terminate process, timeouts as shown.
+   - **Shutdown:** Generate Control-C, Terminate process, timeouts as shown (300000 ms).
    - **Exit actions:** No action (srvany compatible), delay restart by 3000 ms.
 
 4. Click "Install service" to save.
@@ -115,6 +118,22 @@ Open `SCUMServer.config.json` and adjust as needed:
 - `runUpdateOnStart`: Check for updates when the script starts (true/false).
 
 ## 2. Running the Script
+
+### Option 1: Using BAT Files (Recommended)
+
+The easiest way to start and stop the automation:
+
+1. Make sure your server is running as a service via NSSM (see: above # NSSM Service Setup).
+
+2. **To start the automation:**
+   - Double-click `startserver.bat`
+   - It will automatically run as administrator and start the PowerShell automation script
+
+3. **To stop the automation:**
+   - Double-click `stopserver.bat`
+   - It will stop both the SCUM server service and the PowerShell automation script
+
+### Option 2: Manual PowerShell Execution
 
 1. Make sure your server is running as a service via NSSM (see: above # NSSM Service Setup).
 2. Run the PowerShell script `SCUMServer.ps1` as administrator. (Tested and recommended for proper operation.)
