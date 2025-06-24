@@ -139,11 +139,47 @@ function Get-LatestBuildId {
 
 # --- UPDATE ---
 function Update-Server {
+    $manifestPath = Join-Path $serverDir "steamapps/appmanifest_$appId.acf"
+    $firstInstall = -not (Test-Path $manifestPath)
+    $installedBuild = Get-InstalledBuildId
+    $latestBuild = Get-LatestBuildId
+    if ($firstInstall) {
+        Write-Log "[INFO] Manifest not found, forcing first install/update via SteamCMD."
+        # Stop service if running (for safety)
+        if (Check-ServiceRunning $serviceName) {
+            Write-Log "[INFO] Stopping server service before first install..."
+            cmd /c "net stop $serviceName"
+            Start-Sleep -Seconds 10
+        }
+        $cmd = "$steamCmd +force_install_dir $serverDir +login anonymous +app_update $appId validate +quit"
+        Write-Log "[INFO] Downloading server files (first install)..."
+        $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cmd -Wait -NoNewWindow -PassThru
+        $exitCode = $process.ExitCode
+        if ($exitCode -eq 0) {
+            Write-Log "[INFO] First install/update successful. Starting service..."
+            Send-Discord "First Install Complete" "Server files were downloaded and installed successfully." 3066993
+            cmd /c "net start $serviceName"
+            Start-Sleep -Seconds 10
+            if (Check-ServiceRunning $serviceName) {
+                Write-Log "[INFO] Server service is running after first install."
+                Send-Discord "Server Running" "The server service is running after first install." 3447003
+            } else {
+                Write-Log "[ERROR] Server service failed to start after first install!"
+                Send-Discord "Install Error" "The server service failed to start after first install!" 15158332
+            }
+            return $true
+        } else {
+            Write-Log "[ERROR] First install/update failed (code $exitCode)."
+            Send-Discord "Install Failed" "Server first install/update failed with exit code $exitCode." 15158332
+            return $false
+        }
+    }
     $installedBuild = Get-InstalledBuildId
     $latestBuild = Get-LatestBuildId
     if ($null -eq $installedBuild -or $null -eq $latestBuild) {
-        Write-Log "[WARNING] Could not determine buildid, running update as fallback."
-        Send-Discord "Update Warning" "Could not determine buildid, running update as fallback." 15105570
+        Write-Log "[WARNING] Could not determine buildid, skipping update. Will retry on next check."
+        Send-Discord "Update Warning" "Could not determine buildid (SteamCMD error or timeout). Update skipped, will retry on next check." 15105570
+        return $false
     } elseif ($installedBuild -eq $latestBuild) {
         Write-Log "[INFO] No new update available. Skipping update."
         # No Discord notification to avoid spam
@@ -202,14 +238,25 @@ $global:LastRestartTime = $null
 Write-Log "--- Script started ---"
 Send-Discord "SCUM Manager Started"
 
-# Only run initial backup if enabled
-if ($runBackupOnStart) {
+# Check for first install (missing manifest or server dir)
+$manifestPath = Join-Path $serverDir "steamapps/appmanifest_$appId.acf"
+$firstInstall = $false
+if (!(Test-Path $manifestPath) -or !(Test-Path $serverDir)) {
+    Write-Log "[INFO] Server files or manifest not found, performing first install/update."
+    Send-Discord "First Install" "Server files or manifest not found. Downloading server files via SteamCMD..." 15844367
+    Update-Server | Out-Null
+    $global:LastUpdateCheck = Get-Date
+    $firstInstall = $true
+}
+
+# Only run initial backup if enabled and not first install
+if ($runBackupOnStart -and -not $firstInstall) {
     Write-Log "[INFO] Running initial backup (runBackupOnStart enabled) before any update or service start."
     Backup-Saved | Out-Null
     $global:LastBackupTime = Get-Date
 }
 
-if ($runUpdateOnStart) {
+if ($runUpdateOnStart -and -not $firstInstall) {
     Write-Log "[INFO] Running initial update check (runUpdateOnStart enabled)"
     $installedBuild = Get-InstalledBuildId
     $latestBuild = Get-LatestBuildId
@@ -241,7 +288,7 @@ if ($runUpdateOnStart) {
         Update-Server | Out-Null
         $global:LastUpdateCheck = Get-Date
     }
-} else {
+} elseif (-not $firstInstall) {
     # If not updating on start, just start the service if not running
     if (-not (Check-ServiceRunning $serviceName)) {
         Write-Log "[INFO] Starting server service after backup (no update on start)."
