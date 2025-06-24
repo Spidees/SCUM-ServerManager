@@ -11,10 +11,10 @@ if (!(Test-Path $configPath)) {
 $config = Get-Content $configPath | ConvertFrom-Json
 
 $serviceName = $config.serviceName
-$backupRoot = $config.backupRoot
-$savedDir = $config.savedDir
-$steamCmd = $config.steamCmd
-$serverDir = $config.serverDir
+$backupRoot = if ($config.backupRoot.StartsWith('./')) { Join-Path $PSScriptRoot ($config.backupRoot.Substring(2)) } else { $config.backupRoot }
+$savedDir = if ($config.savedDir.StartsWith('./')) { Join-Path $PSScriptRoot ($config.savedDir.Substring(2)) } else { $config.savedDir }
+$steamCmd = if ($config.steamCmd.StartsWith('./')) { Join-Path $PSScriptRoot ($config.steamCmd.Substring(2)) } else { $config.steamCmd }
+$serverDir = if ($config.serverDir.StartsWith('./')) { Join-Path $PSScriptRoot ($config.serverDir.Substring(2)) } else { $config.serverDir }
 $appId = $config.appId
 $discordWebhook = $config.discordWebhook
 $restartTimes = $config.restartTimes
@@ -219,8 +219,7 @@ if ($runUpdateOnStart) {
         Update-Server | Out-Null
         $global:LastUpdateCheck = Get-Date
     } elseif ($installedBuild -eq $latestBuild) {
-        Write-Log "[INFO] No new update available. Skipping update."
-        # Start service if not running (don't stop it if it's already running)
+        Write-Log "[INFO] No new update available. Skipping update."        # Start service if not running (don't stop it if it's already running)
         if (-not (Check-ServiceRunning $serviceName)) {
             Write-Log "[INFO] Starting server service after backup and update check."
             cmd /c "net start $serviceName"
@@ -232,6 +231,8 @@ if ($runUpdateOnStart) {
                 Write-Log "[ERROR] Server service failed to start after backup and update check!"
                 Send-Discord "Start Error" "The SCUM server service failed to start after backup and update check!" 15158332
             }
+        } else {
+            Write-Log "[INFO] Server service is already running after update check."
         }
         $global:LastUpdateCheck = Get-Date
     } else {
@@ -253,6 +254,8 @@ if ($runUpdateOnStart) {
             Write-Log "[ERROR] Server service failed to start after backup!"
             Send-Discord "Start Error" "The SCUM server service failed to start after backup!" 15158332
         }
+    } else {
+        Write-Log "[INFO] Server service is already running, no action needed."
     }
 }
 
@@ -290,8 +293,7 @@ while ($true) {
             $global:LastRestartTime = $now.Date.AddHours($now.Hour).AddMinutes($now.Minute)
             $updateOrRestart = $true
         }
-    }
-    # Check if the service is running if there was no update or restart
+    }    # Check if the service is running if there was no update or restart
     if (-not $updateOrRestart) {
         if (-not (Check-ServiceRunning $serviceName)) {
             Write-Log "[WARNING] Server service is not running! Attempting to start..."
@@ -304,6 +306,9 @@ while ($true) {
                 Write-Log "[ERROR] Server service failed to auto-restart!"
                 Send-Discord "Auto-Restart Error" "The SCUM server service failed to auto-restart after a crash!" 15158332
             }
+        } else {
+            # Service is running, no action needed
+            Write-Log "[DEBUG] Server service is running normally."
         }
     }
     Start-Sleep -Seconds 30
