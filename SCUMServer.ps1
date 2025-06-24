@@ -211,12 +211,6 @@ if ($runBackupOnStart) {
 
 if ($runUpdateOnStart) {
     Write-Log "[INFO] Running initial update check (runUpdateOnStart enabled)"
-    # Stop service if running before update
-    if (Check-ServiceRunning $serviceName) {
-        Write-Log "[INFO] Stopping server service before initial update..."
-        cmd /c "net stop $serviceName"
-        Start-Sleep -Seconds 10
-    }
     $installedBuild = Get-InstalledBuildId
     $latestBuild = Get-LatestBuildId
     if ($null -eq $installedBuild -or $null -eq $latestBuild) {
@@ -226,7 +220,7 @@ if ($runUpdateOnStart) {
         $global:LastUpdateCheck = Get-Date
     } elseif ($installedBuild -eq $latestBuild) {
         Write-Log "[INFO] No new update available. Skipping update."
-        # Start service if not running
+        # Start service if not running (don't stop it if it's already running)
         if (-not (Check-ServiceRunning $serviceName)) {
             Write-Log "[INFO] Starting server service after backup and update check."
             cmd /c "net start $serviceName"
@@ -239,6 +233,7 @@ if ($runUpdateOnStart) {
                 Send-Discord "Start Error" "The SCUM server service failed to start after backup and update check!" 15158332
             }
         }
+        $global:LastUpdateCheck = Get-Date
     } else {
         Write-Log "[INFO] New update available! Installed: $installedBuild, Latest: $latestBuild"
         Send-Discord "Update Available" "A new server update is available! Installed: $installedBuild, Latest: $latestBuild" 15844367
