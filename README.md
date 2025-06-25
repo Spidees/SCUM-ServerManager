@@ -1,3 +1,4 @@
+![SCUM Server Automation](http://playhub.cz/scum/manager/repository-open-graph-template.jpg)
 # 🎮 SCUM Server Automation
 
 **SCUM Dedicated Server Management for Windows**
