@@ -147,7 +147,8 @@ function Write-Log {
     param([string]$msg)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $line = "$timestamp $msg"
-    $line | Out-File -FilePath "SCUMServer.log" -Append -Encoding utf8
+    $logPath = Join-Path -Path $PSScriptRoot -ChildPath "SCUMServer.log"
+    $line | Out-File -FilePath $logPath -Append -Encoding utf8
     Write-Host $line
 }
 
