@@ -11,7 +11,7 @@ This project provides a complete automation solution for running SCUM dedicated 
 ✅ **Crash Recovery** - Automatic server recovery with health monitoring  
 ✅ **Service Management** - Runs as Windows service via NSSM  
 ✅ **Configurable Notifications** - Enable/disable individual notification types  
-✅ **Comprehensive Logging** - Detailed logs for troubleshooting
+✅ **Comprehensive Logging** - Detailed logs for troubleshooting  
 ✅ **Latest Update**: Added individual notification toggle system - you can now enable/disable any notification type!
 
 # 📁 Quick Setup Guide
