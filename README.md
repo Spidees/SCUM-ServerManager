@@ -1,6 +1,6 @@
 # 🎮 SCUM Server Automation
 
-**Professional SCUM Dedicated Server Management for Windows**
+**SCUM Dedicated Server Management for Windows**
 
 This project provides a complete automation solution for running SCUM dedicated servers on Windows. Features include:
 
