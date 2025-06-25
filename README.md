@@ -1,158 +1,554 @@
-# SCUM Server Automation
+# 🎮 SCUM Server Automation
 
-This project provides a complete automation solution for running a SCUM dedicated server on Windows. It handles automatic updates, scheduled restarts, regular backups (with compression and retention), Discord notifications, robust logging, and auto-recovery. The server runs as a Windows service managed by NSSM, and all automation is fully configurable via a JSON file.
+**Professional SCUM Dedicated Server Management for Windows**
 
-# Directory Structure
+This project provides a complete automation solution for running SCUM dedicated servers on Windows. Features include:
 
-Recommended folder structure for SCUM server automation:
+✅ **Automatic Updates** - Smart update system with player notifications  
+✅ **Scheduled Restarts** - Customizable restart times with advance warnings  
+✅ **Automated Backups** - Compressed backups with retention management  
+✅ **Discord Integration** - Professional notifications and admin commands  
+✅ **Crash Recovery** - Automatic server recovery with health monitoring  
+✅ **Service Management** - Runs as Windows service via NSSM  
+✅ **Configurable Notifications** - Enable/disable individual notification types  
+✅ **Comprehensive Logging** - Detailed logs for troubleshooting
+✅ **Latest Update**: Added individual notification toggle system - you can now enable/disable any notification type!
+
+# 📁 Quick Setup Guide
+
+## Prerequisites
+
+Before starting, make sure you have:
+- **Windows 10/11** with Administrator access
+- **PowerShell 5.1+** (pre-installed on Windows)
+- **SCUM Dedicated Server** files
+- **Discord Bot** (optional, for notifications and admin commands)
+
+## 🚀 Installation Steps
+
+### 1. Download Required Tools
+
+| Tool | Purpose | Download Link |
+|------|---------|---------------|
+| **SteamCMD** | Server updates | [Download](https://developer.valvesoftware.com/wiki/SteamCMD#Downloading_SteamCMD) |
+| **NSSM** | Service manager | [Download](https://nssm.cc/download) |
+
+### 2. Directory Structure
+
+Create this folder structure (recommended):
 
 ```
-SCUM
-│   SCUMServer.ps1
-│   SCUMServer.config.json
-│   startserver.bat
-│   stopserver.bat
-│   nssm.exe
-├── server
-├── steamcmd
-└── backups
+📁 SCUM-Server/
+├── 📄 SCUMServer.ps1              # Main automation script
+├── 📄 SCUMServer.config.json      # Configuration file
+├── 📄 startserver.bat             # Start automation
+├── 📄 stopserver.bat              # Stop automation  
+├── 📄 nssm.exe                    # Service manager
+├── 📁 server/                     # SCUM server files
+│   └── 📁 SCUM/Binaries/Win64/    # Server executable location
+├── 📁 steamcmd/                   # SteamCMD installation
+│   └── 📄 steamcmd.exe
+└── 📁 backups/                    # Automatic backups (created automatically)
 ```
 
-- Place all files and folders as shown above in a main folder (e.g., `C:/SCUM`).
-- The `server` folder contains your SCUM dedicated server files.
-- The `steamcmd` folder contains SteamCMD.
-- `SCUMServer.ps1`, `SCUMServer.config.json`, `startserver.bat`, `stopserver.bat`, and `nssm.exe` should be in the root of the SCUM folder.
+### 3. Setup Instructions
 
-# SteamCMD Setup
+1. **Extract SteamCMD** into the `steamcmd/` folder
+2. **Extract NSSM** and place `nssm.exe` in the root folder
+3. **Install your SCUM server** files in the `server/` folder
+4. **Copy the automation files** (`SCUMServer.ps1`, `SCUMServer.config.json`, `*.bat`) to the root folder
 
-You will need SteamCMD to update and manage your SCUM server. Download it here: [https://developer.valvesoftware.com/wiki/SteamCMD#Downloading_SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD#Downloading_SteamCMD)
+# 🔧 NSSM Service Configuration
 
-- Extract the contents of the SteamCMD download into the `steamcmd` folder inside your main SCUM directory.
+**NSSM (Non-Sucking Service Manager)** allows your SCUM server to run as a Windows service.
 
-# NSSM Service Setup
+## Step-by-Step Setup
 
-You will need NSSM (the Non-Sucking Service Manager). Download it here: [https://nssm.cc/download](https://nssm.cc/download)
+### 1. Install Service
+Open **Command Prompt as Administrator** in your SCUM folder and run:
+```cmd
+nssm.exe install SCUMSERVER
+```
 
-To run your SCUM server as a Windows service using NSSM:
+### 2. Configure Service Settings
 
-1. Open a command prompt as administrator in the SCUM folder and run:
-   ```
-   nssm.exe install SCUMSERVER
-   ```
-2. In the NSSM service editor, set the following (see screenshots below for reference):
-   - **Path:**
-     - `C:\SCUM\server\SCUM\Binaries\Win64\SCUMServer.exe` (adjust to your actual path)
-   - **Startup directory:**
-     - `C:\SCUM\server\SCUM\Binaries\Win64`
-   - **Arguments like you want, ex.:**
-     - `-port=XXXX -log` 
-   - **Service name:**
-     - `SCUMSERVER` (or your chosen name, must match config)
+The NSSM GUI will open. Configure each tab as follows:
 
-3. Other settings (see screenshots):
-   - **Log on:** Local System account, allow service to interact with desktop.
-   - **Details:** Startup type = Manual.
-   - **Process:** Priority = Realtime, Console window checked, All processors selected.
-   - **Shutdown:** Generate Control-C, Terminate process, timeouts as shown (300000 ms).
-   - **Exit actions:** No action (srvany compatible), delay restart by 3000 ms.
+#### 📋 Application Tab
+- **Path**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64\SCUMServer.exe`
+- **Startup directory**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64`
+- **Arguments**: `-port=7777 -log` (adjust port as needed)
 
-4. Click "Install service" to save.
+#### ⚙️ Details Tab  
+- **Display name**: `SCUMSERVER`
+- **Description**: `SCUM Dedicated Server`
+- **Startup type**: `Manual` (automation will control it)
 
-5. Start the service from Windows Services or with:
-   ```
-   net start SCUMSERVER
-   ```
-   
-   To stop the service, use:
-   ```
-   net stop SCUMSERVER
-   ```
+#### 🔐 Log On Tab
+- **Account**: `Local System account`
+- ✅ **Allow service to interact with desktop**
 
-### NSSM Configuration Screenshots
+#### ⚡ Process Tab
+- **Priority class**: `Realtime`
+- ✅ **Console window**
+- **Processor affinity**: `All processors`
 
-Below are example screenshots for each NSSM tab:
+#### 🛑 Shutdown Tab
+- **Shutdown method**: `Generate Ctrl+C`
+- **Kill processes in console session**: ✅
+- **Timeouts**: `300000 ms` for all fields
 
-**Application Tab**
+#### 🔄 Exit Actions Tab
+- **On Exit**: `No action`
+- ✅ **srvany compatible exit code**
+- **Restart delay**: `3000 ms`
 
-![NSSM Application Tab](https://playhub.cz/scum/manager/nssm1.png)
+### 3. Install and Test
+1. Click **"Install service"**
+2. Test manually: `net start SCUMSERVER`
+3. Verify in Windows Services that it starts correctly
+4. Stop it: `net stop SCUMSERVER`
 
-**Details Tab**
+> ⚠️ **Important**: The automation script will control the service - don't set it to "Automatic" startup!
 
-![NSSM Details Tab](https://playhub.cz/scum/manager/nssm6.png)
+### 📸 Visual Configuration Guide
 
-**Log On Tab**
+For visual reference, here are the NSSM configuration screenshots:
 
-![NSSM Log On Tab](https://playhub.cz/scum/manager/nssm2.png)
-
-**Process Tab**
-
-![NSSM Process Tab](https://playhub.cz/scum/manager/nssm3.png)
-
-**Shutdown Tab**
-
-![NSSM Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png)
-
-**Exit Actions Tab**
-
-![NSSM Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png)
+| Tab | Screenshot |
+|-----|------------|
+| **Application** | ![Application Tab](https://playhub.cz/scum/manager/nssm1.png) |
+| **Details** | ![Details Tab](https://playhub.cz/scum/manager/nssm6.png) |
+| **Log On** | ![Log On Tab](https://playhub.cz/scum/manager/nssm2.png) |
+| **Process** | ![Process Tab](https://playhub.cz/scum/manager/nssm3.png) |
+| **Shutdown** | ![Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png) |
+| **Exit Actions** | ![Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png) |
 
 ---
-# SCUM Server Automation – Guide
 
-This script automates the management of a SCUM dedicated server on Windows (backups, updates, restarts, Discord notifications, logging). Everything is controlled via the `SCUMServer.config.json` configuration file.
+# ⚙️ Configuration Guide
 
-## 1. Configuration
+The automation is fully controlled via `SCUMServer.config.json`. Here's how to configure it:
 
-Open `SCUMServer.config.json` and adjust as needed:
+## 🔧 Basic Server Settings
 
-- `serviceName`: Name of the NSSM service (as installed, e.g., "SCUMSERVER").
-- `backupRoot`: Where to store backups (e.g., `./backups`).
-- `savedDir`: Path to the server's saved data (e.g., `./server/SCUM/Saved`).
-- `steamCmd`: Path to SteamCMD (e.g., `./steamcmd/steamcmd.exe`).
-- `serverDir`: Root folder of the server (e.g., `./server`).
-- `appId`: Steam AppID for the SCUM server (should be 3792580).
-- `discordWebhook`: URL for Discord notifications (optional, leave empty if not used).
-- `restartTimes`: Automatic restart times (format HH:mm, e.g., ["02:00", "12:00", "18:00", "00:00"]).
+```json
+{
+  "serviceName": "SCUMSERVER",           // NSSM service name
+  "backupRoot": "./backups",             // Backup storage location  
+  "savedDir": "./server/SCUM/Saved",     // Server save files
+  "steamCmd": "./steamcmd/steamcmd.exe", // SteamCMD path
+  "serverDir": "./server",               // Server installation
+  "appId": "3792580",                    // SCUM Steam App ID
+  "restartTimes": ["02:00", "14:00", "20:00"], // Daily restart schedule
+  "backupIntervalMinutes": 60,           // How often to backup
+  "updateCheckIntervalMinutes": 10,      // Update check frequency
+  "updateDelayMinutes": 15,              // Update delay when server running
+  "maxBackups": 10,                      // Backup retention count
+  "compressBackups": true,               // Compress backup files
+  "runBackupOnStart": true,              // Backup on script start
+  "runUpdateOnStart": true               // Check updates on start
+}
+```
 
-- `backupIntervalMinutes`: Backup interval in minutes (e.g., 60).
-- `updateCheckIntervalMinutes`: How often to check for updates (e.g., 10).
-- `maxBackups`: How many backups to keep (e.g., 10).
-- `compressBackups`: Compress backups (true/false).
-- `runBackupOnStart`: Run backup when the script starts (true/false).
-- `runUpdateOnStart`: Check for updates when the script starts (true/false).
+## 🔔 Discord Integration Setup
 
-## 2. Running the Script
+### Option 1: Discord Bot (Recommended)
 
-### Option 1: Using BAT Files (Recommended)
+**Why use a bot?** Better control, admin commands, and more reliable delivery.
 
-The easiest way to start and stop the automation:
+1. **Create Discord Bot**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create New Application → Bot tab → Create Bot
+   - Copy the **Bot Token**
 
-1. Make sure your server is running as a service via NSSM (see: above # NSSM Service Setup).
+2. **Add Bot to Server**:
+   - In Bot tab, click **Reset Token** and copy it
+   - Go to OAuth2 → URL Generator
+   - Select scopes: `bot` and permissions: `Send Messages`, `Read Messages`, `Use Slash Commands`
+   - Use generated URL to add bot to your Discord server
 
-2. **To start the automation:**
-   - Double-click `startserver.bat`
-   - It will automatically run as administrator and start the PowerShell automation script
+3. **Configure Bot in JSON**:
+```json
+{
+  "botToken": "YOUR_BOT_TOKEN_HERE",
+  "admin_notification": {
+    "method": "bot",
+    "channelIds": ["123456789012345678"],    // Admin channel ID
+    "roleIds": ["987654321098765432"]        // Admin role ID
+  },
+  "player_notification": {  
+    "method": "bot",
+    "channelIds": ["123456789012345679"],    // Player channel ID
+    "roleIds": ["987654321098765433"]        // Player role ID (optional)
+  },
+  "admin_command_channel": {
+    "channelIds": ["123456789012345678"],    // Where admins can use !commands
+    "roleIds": ["987654321098765432"],       // Required role for commands
+    "commandPrefix": "!"                     // Command prefix
+  }
+}
+```
 
-3. **To stop the automation:**
-   - Double-click `stopserver.bat`
-   - It will stop both the SCUM server service and the PowerShell automation script
+### Option 2: Discord Webhooks (Simple)
 
-### Option 2: Manual PowerShell Execution
+**Good for:** Basic notifications only (no admin commands).
 
-1. Make sure your server is running as a service via NSSM (see: above # NSSM Service Setup).
-2. Run the PowerShell script `SCUMServer.ps1` as administrator. (Tested and recommended for proper operation.)
-3. The script will automatically perform backups, updates, restarts, and send notifications according to the config.
+1. **Create Webhook**:
+   - Discord channel → Settings → Integrations → Webhooks → New Webhook
+   - Copy the Webhook URL
 
-## 3. Notes
-- A backup is always performed before every server update.
-- If a new version is detected, a backup is made before the update.
-- Discord notifications are optional and can be disabled.
-- Logs and errors are saved in `SCUMServer.log`.
+2. **Configure Webhook in JSON**:
+```json
+{
+  "admin_notification": {
+    "method": "webhook", 
+    "webhooks": ["https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"]
+  },
+  "player_notification": {
+    "method": "webhook",
+    "webhooks": ["https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"]  
+  }
+}
+```
 
-## 4. Recommendations
-- Regularly check your backups and logs.
-- To simulate an update, you can manually change the `buildid` in `server/steamapps/appmanifest_3792580.acf`.
-- All paths can be set relative to the script folder.
+### 🎯 Finding Discord IDs
+
+**Enable Developer Mode**: Discord Settings → Advanced → Developer Mode ✅
+
+- **Channel ID**: Right-click channel → Copy ID
+- **Role ID**: Server Settings → Roles → Right-click role → Copy ID  
+- **User ID**: Right-click user → Copy ID
+## 🔧 Advanced Notification Customization
+
+### Individual Notification Toggle
+
+**NEW FEATURE!** You can now enable/disable any notification type individually:
+
+```json
+{
+  "admin_notification": {
+    "messages": {
+      "serverStarted": { 
+        "title": "Server Started", 
+        "text": "SCUM server is online! Reason: {reason}", 
+        "color": 3066993,
+        "enabled": true     // ← Toggle this notification on/off
+      },
+      "backupCreated": {
+        "title": "Backup Created",
+        "text": "Backup saved: {path}",
+        "color": 3447003,
+        "enabled": false    // ← This notification is disabled
+      }
+    }
+  }
+}
+```
+
+### Message Template Variables
+
+All messages support dynamic variables that get replaced automatically:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{reason}` | Why action occurred | "Admin command", "Scheduled restart" |
+| `{result}` | Action outcome | "completed successfully", "failed" |
+| `{status}` | Server status | "ONLINE", "OFFLINE" |
+| `{admin}` | Admin who triggered action | Discord user ID |
+| `{delayMinutes}` | Delay time | "15", "30" |
+| `{path}` | File/backup location | "./backups/backup.zip" |
+| `{installed}` | Current build ID | "12345678" |
+| `{latest}` | Latest build ID | "12345679" |
+
+### Notification Categories
+
+**Admin Notifications** (detailed, technical):
+- Server status changes with reasons
+- Backup creation/failure reports  
+- Update process details with build IDs
+- Error messages with exit codes
+- Action result confirmations
+
+**Player Notifications** (user-friendly):
+- Restart warnings (15min, 5min, 1min)
+- Update announcements with timings
+- Server online/offline status
+- Crash notifications
+
+## 🎮 Discord Admin Commands
+
+Control your server directly from Discord! Send these commands in your configured admin channel:
+
+### 🔄 Server Control Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `!server_restart` | Restart server immediately | `!server_restart` |
+| `!server_restart [min]` | Schedule restart with warnings | `!server_restart 15` |
+| `!server_stop` | Stop server immediately | `!server_stop` |
+| `!server_stop [min]` | Schedule stop with warnings | `!server_stop 10` |  
+| `!server_start` | Start stopped server | `!server_start` |
+
+### 📥 Update Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `!server_update` | Smart update (delay if running) | `!server_update` |
+| `!server_update [min]` | Custom delay update | `!server_update 30` |
+| `!server_update_now` | Force immediate update | `!server_update_now` |
+| `!server_cancel_update` | Cancel scheduled update | `!server_cancel_update` |
+
+### 💾 Utility Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `!server_backup` | Create manual backup | `!server_backup` |
+
+### 🔐 Security Features
+
+- **Role-based permissions**: Only users with configured roles can use commands
+- **Channel restrictions**: Commands only work in designated channels  
+- **Action confirmations**: All commands send result notifications
+- **Audit logging**: All admin actions are logged with timestamps
+
+> **Note**: Commands with delay parameters (like `!server_restart 15`) automatically send player warnings at appropriate intervals.
+
+---
+
+# 🚀 Running the Automation
+
+## 🎯 Easy Start/Stop (Recommended Method)
+
+The simplest way to manage your automation:
+
+### ▶️ Starting the Automation
+1. **Double-click** `startserver.bat`
+2. ✅ Automatically runs as Administrator
+3. ✅ Starts PowerShell automation script
+4. ✅ Server begins running with full automation
+
+### ⏹️ Stopping the Automation  
+1. **Double-click** `stopserver.bat`
+2. ✅ Gracefully stops SCUM server service
+3. ✅ Terminates PowerShell automation script
+4. ✅ Clean shutdown with final backup
+
+## 🔧 Manual PowerShell Method
+
+For advanced users or troubleshooting:
+
+1. **Open PowerShell as Administrator**
+2. **Navigate** to your SCUM folder: `cd "C:\Path\To\Your\SCUM-Server"`
+3. **Run** the script: `.\SCUMServer.ps1`
+4. **Monitor** the console output for status updates
+
+## ✅ Verification Steps
+
+After starting, verify everything is working:
+
+1. **Check Service Status**:
+   ```cmd
+   net query SCUMSERVER
+   ```
+
+2. **Monitor Log File**:
+   - Check `SCUMServer.log` for any errors
+   - Look for Discord notification confirmations
+
+3. **Test Discord Integration**:
+   - Send a test admin command: `!server_backup`
+   - Verify notifications appear in configured channels
+
+4. **Check Automated Backups**:
+   - Backups should appear in `./backups/` folder
+   - Compressed .zip files with timestamps
+
+---
+
+# 🧠 Intelligent Automation Features
+
+## 🔄 Smart Update System
+
+### Server Running → Delayed Updates
+When your server has active players:
+1. **📢 Initial notification**: "Update available, server will restart in X minutes"
+2. **⚠️ 5-minute warning**: "Update starting in 5 minutes!" (if delay ≥ 5 min)  
+3. **🔄 Update execution**: Server restarts and updates automatically
+4. **✅ Completion notice**: "Update completed, server is back online!"
+
+### Server Offline → Immediate Updates  
+When server is empty or stopped:
+- ✅ **No waiting time** - updates immediately
+- ✅ **No player disruption** - since nobody is playing
+- ✅ **Faster maintenance** - efficient update process
+
+### Admin Update Controls
+- `!server_update` → Smart delay (default config) or immediate if offline
+- `!server_update 30` → Custom 30-minute delay with player warnings  
+- `!server_update_now` → Force immediate update regardless of status
+- `!server_cancel_update` → Cancel any pending update
+
+## 🛡️ Crash Recovery & Health Monitoring
+
+### Automatic Crash Detection
+- **🔍 Continuous monitoring**: Service status checked every few seconds
+- **⚡ Instant detection**: Crashes detected immediately  
+- **🔄 Smart recovery**: Automatic restart with crash reason logging
+
+### Intelligent Auto-Restart Logic
+- **✅ Auto-restart crashes**: When server dies unexpectedly
+- **❌ Respect manual stops**: Won't restart if admin stopped it intentionally
+- **📢 Player notifications**: Players informed about crashes and recovery
+- **📝 Detailed logging**: Crash reasons and recovery actions logged
+
+### Health Status Tracking
+- **Real-time status**: Continuous server health monitoring
+- **Performance logging**: Resource usage and uptime tracking
+- **Predictive alerts**: Early warning for potential issues
+
+## 📊 Professional Notification System
+
+### Universal Status Tracking
+Every server action automatically triggers appropriate notifications:
+
+| Action | Admin Notification | Player Notification |
+|--------|-------------------|-------------------|
+| **Server Start** | Detailed start reason & status | "Server is now online!" |
+| **Server Stop** | Stop reason & confirmation | "Server has been stopped" |
+| **Scheduled Restart** | Restart execution details | Progressive warnings (15m→5m→1m) |
+| **Update Available** | Technical details with build IDs | User-friendly update notice |
+| **Crash Detected** | Error details & recovery status | "Server crashed, restarting..." |
+| **Backup Created** | File location & compression info | *(Optional - can be disabled)* |
+
+### Notification Intelligence
+- **📱 Role-based delivery**: Different content for admins vs players
+- **🎯 Context-aware**: Messages adapt based on situation
+- **⚙️ Fully configurable**: Enable/disable any notification type
+- **🔧 Template system**: Customize all message content and formatting
+
+---
+
+# 💡 Best Practices & Tips
+
+## 🎯 Recommended Settings
+
+### For Small Communities (< 20 players)
+```json
+{
+  "restartTimes": ["06:00", "18:00"],      // Twice daily
+  "updateDelayMinutes": 5,                 // Short delays
+  "backupIntervalMinutes": 30,             // Frequent backups
+  "maxBackups": 20                         // More backup retention
+}
+```
+
+### For Large Communities (> 50 players)  
+```json
+{
+  "restartTimes": ["04:00", "16:00"],      // Off-peak hours
+  "updateDelayMinutes": 30,                // Longer warnings
+  "backupIntervalMinutes": 60,             // Standard backups
+  "maxBackups": 10                         // Storage efficiency
+}
+```
+
+## 🔧 Configuration Tips
+
+### Discord Setup
+1. **Test notifications** in a private channel first
+2. **Use separate channels** for admin vs player notifications
+3. **Set appropriate role permissions** to prevent command abuse
+4. **Monitor the log file** for Discord API issues
+
+### Performance Optimization
+- **Use SSD storage** for backup directory if possible
+- **Schedule restarts** during low-activity periods
+- **Monitor backup sizes** and adjust retention accordingly
+- **Test update delays** with your community
+
+### Security Considerations
+- **Limit admin roles** to trusted community members only
+- **Use unique bot tokens** (don't share across servers)
+- **Regularly check logs** for unauthorized command attempts
+- **Keep backup files secure** and test restoration procedures
+
+## 🔍 Troubleshooting Guide
+
+### Common Issues & Solutions
+
+| Problem | Likely Cause | Solution |
+|---------|--------------|----------|
+| **Notifications not sending** | Bot token or channel ID incorrect | Verify Discord configuration |
+| **Server won't start** | NSSM service misconfigured | Check NSSM settings and paths |
+| **Updates failing** | SteamCMD permissions issue | Run as Administrator |
+| **Backups not working** | Insufficient disk space | Check available storage |
+| **Commands ignored** | Missing role permissions | Verify Discord role IDs |
+
+### Testing Your Setup
+
+```powershell
+# Test notification system
+.\Test-Notification-Toggle.ps1
+.\Test-Enabled-Flag.ps1
+
+# Test Discord bot manually
+# Send: !server_backup (should create backup and notify)
+
+# Check service status
+net query SCUMSERVER
+
+# Verify log file
+Get-Content -Tail 20 .\SCUMServer.log
+```
+
+## 📋 Maintenance Checklist
+
+### Daily
+- [ ] Check `SCUMServer.log` for errors
+- [ ] Verify backup files are being created
+- [ ] Monitor Discord notifications
+
+### Weekly  
+- [ ] Test admin commands functionality
+- [ ] Review backup retention (delete old backups manually if needed)
+- [ ] Check server performance metrics
+
+### Monthly
+- [ ] Update SCUM server manually to latest version
+- [ ] Review and optimize restart schedule
+- [ ] Test disaster recovery procedures
+- [ ] Update Discord bot permissions if needed
+
+---
+
+# 🔧 Advanced Features
+
+## 📊 Logging & Monitoring
+
+All automation activity is logged to `SCUMServer.log` with timestamps:
+
+```
+2025-06-25 10:30:15 [INFO] Starting SCUM Server automation...
+2025-06-25 10:30:16 [INFO] Backup created: ./backups/Saved_BACKUP_20250625_103015.zip
+2025-06-25 10:30:45 [INFO] Bot notification sent: Server Started
+2025-06-25 10:35:22 [INFO] Admin command received: !server_backup from <@123456789>
+```
+
+## 🔄 Backup System Features
+
+- **Automatic compression** with configurable retention
+- **Incremental cleanup** - old backups auto-deleted
+- **Pre-update backups** - automatic backup before every update
+- **Manual backup command** - `!server_backup` for instant backups
+- **Integrity verification** - backup success/failure notifications
+
+## ⚡ Performance Features
+
+- **Minimal resource usage** - optimized PowerShell scripting
+- **Non-blocking operations** - server performance unaffected
+- **Intelligent scheduling** - operations during low-activity periods
+- **Crash recovery** - automatic restart without manual intervention
 
 ---
 
