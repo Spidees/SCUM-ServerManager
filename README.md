@@ -1,4 +1,5 @@
 ![SCUM Server Automation](http://playhub.cz/scum/manager/repository-open-graph-template.jpg)
+
 # 🎮 SCUM Server Automation
 
 **SCUM Dedicated Server Management for Windows**
@@ -165,8 +166,8 @@ The automation is fully controlled via `SCUMServer.config.json`. Here's how to c
 2. **Add Bot to Server**:
    - In Bot tab, click **Reset Token** and copy it
    - Go to OAuth2 → URL Generator
-   - Select scopes: `bot` and permissions: `Send Messages`, `Read Messages`, `Use Slash Commands`
-   - Use generated URL to add bot to your Discord server
+   - Select scopes: `bot` and permissions: `View Channels`, `Send Messages`, `Manage Messages`, `Read Messages History`, `Mention Everyone`, `Use External Emojis`, `Add Reactions`, `Use Slash Commands`, `Use Embedded Activities`
+   - Use generated URL to add bot to your Discord server (permission 551903767616)
 
 3. **Configure Bot in JSON**:
 ```json
