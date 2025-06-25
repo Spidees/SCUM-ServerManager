@@ -485,23 +485,6 @@ Every server action automatically triggers appropriate notifications:
 | **Backups not working** | Insufficient disk space | Check available storage |
 | **Commands ignored** | Missing role permissions | Verify Discord role IDs |
 
-### Testing Your Setup
-
-```powershell
-# Test notification system
-.\Test-Notification-Toggle.ps1
-.\Test-Enabled-Flag.ps1
-
-# Test Discord bot manually
-# Send: !server_backup (should create backup and notify)
-
-# Check service status
-net query SCUMSERVER
-
-# Verify log file
-Get-Content -Tail 20 .\SCUMServer.log
-```
-
 ## 📋 Maintenance Checklist
 
 ### Daily
