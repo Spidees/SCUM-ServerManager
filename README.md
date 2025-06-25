@@ -4,15 +4,14 @@
 
 This project provides a complete automation solution for running SCUM dedicated servers on Windows. Features include:
 
-✅ **Automatic Updates** - Smart update system with player notifications  
-✅ **Scheduled Restarts** - Customizable restart times with advance warnings  
+✅ **Automatic Updates** - Smart update system with player notifications (discord only)  
+✅ **Scheduled Restarts** - Customizable restart times with advance warnings (discord only)  
 ✅ **Automated Backups** - Compressed backups with retention management  
 ✅ **Discord Integration** - Professional notifications and admin commands  
 ✅ **Crash Recovery** - Automatic server recovery with health monitoring  
 ✅ **Service Management** - Runs as Windows service via NSSM  
 ✅ **Configurable Notifications** - Enable/disable individual notification types  
 ✅ **Comprehensive Logging** - Detailed logs for troubleshooting  
-✅ **Latest Update**: Added individual notification toggle system - you can now enable/disable any notification type!
 
 # 📁 Quick Setup Guide
 
