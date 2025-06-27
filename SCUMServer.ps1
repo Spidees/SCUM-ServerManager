@@ -21,6 +21,7 @@ $serverDir = if ($config.serverDir.StartsWith('./')) { Join-Path $PSScriptRoot (
 $appId = $config.appId
 $restartTimes = $config.restartTimes
 $backupIntervalMinutes = $config.backupIntervalMinutes
+$periodicBackupEnabled = $config.periodicBackupEnabled
 $updateCheckIntervalMinutes = $config.updateCheckIntervalMinutes
 $updateDelayMinutes = $config.updateDelayMinutes
 $maxBackups = $config.maxBackups
@@ -44,6 +45,48 @@ function Send-Notification {
         [Parameter(Mandatory)] [string]$messageKey, # Message template key
         [Parameter()] [hashtable]$vars = @{} # Template variables
     )
+    
+    # Anti-spam a rate limiting kontrola
+    $suppressDuplicates = if ($config.suppressDuplicateNotifications -ne $null) { $config.suppressDuplicateNotifications } else { $true }
+    $rateLimitMinutes = if ($config.notificationRateLimitMinutes) { $config.notificationRateLimitMinutes } else { 1 }
+    $adminAlways = if ($config.adminNotificationAlways -ne $null) { $config.adminNotificationAlways } else { $true }
+    $minPlayersForPlayerNotif = if ($config.playerNotificationMinimumPlayers) { $config.playerNotificationMinimumPlayers } else { 0 }
+    
+    # Vytvořit klíč pro tracking duplicitních zpráv
+    $notificationKey = "$type-$messageKey"
+    $now = Get-Date
+    
+    # Initialize global tracking hash if not exists
+    if (-not $global:LastNotifications) {
+        $global:LastNotifications = @{}
+    }
+    
+    # Kontrola rate limiting
+    if ($global:LastNotifications[$notificationKey]) {
+        $timeSinceLastMinutes = ($now - $global:LastNotifications[$notificationKey]).TotalMinutes
+        if ($timeSinceLastMinutes -lt $rateLimitMinutes) {
+            if ($type -eq 'admin' -and -not $adminAlways) {
+                Write-Log "[INFO] Rate limit: Skipping $messageKey for $type (last sent $([Math]::Round($timeSinceLastMinutes, 1)) min ago)"
+                return
+            } elseif ($type -eq 'player') {
+                Write-Log "[INFO] Rate limit: Skipping $messageKey for $type (last sent $([Math]::Round($timeSinceLastMinutes, 1)) min ago)"
+                return
+            }
+        }
+    }
+    
+    # Kontrola minimálního počtu hráčů pro player notifikace
+    if ($type -eq 'player' -and $vars.ContainsKey('playerCount')) {
+        $currentPlayers = [int]$vars['playerCount']
+        if ($currentPlayers -lt $minPlayersForPlayerNotif) {
+            Write-Log "[INFO] Player notification skipped: Only $currentPlayers players online (minimum: $minPlayersForPlayerNotif)"
+            return
+        }
+    }
+    
+    # Update tracking
+    $global:LastNotifications[$notificationKey] = $now
+    
     # Get notification config section
     $section = if ($type -eq 'admin') { $adminNotification } else { $playerNotification }
     $method = $section.method
@@ -145,33 +188,94 @@ function Send-Notification {
 # Write timestamped log messages
 function Write-Log {
     param([string]$msg)
+    
+    # Zkontrolovat, jestli je detailní logování povoleno
+    $enableDetailedLogging = if ($config.enableDetailedLogging -ne $null) { $config.enableDetailedLogging } else { $true }
+    
+    # Pokud je logování vypnuto, zobrazit jen na konzoli
+    if (-not $enableDetailedLogging -and $msg -like "*[INFO]*") {
+        Write-Host $msg
+        return
+    }
+    
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $line = "$timestamp $msg"
     $logPath = Join-Path -Path $PSScriptRoot -ChildPath "SCUMServer.log"
+    
+    # Zkontrolovat velikost log souboru a rotovat pokud je potřeba
+    $maxLogFileSizeMB = if ($config.maxLogFileSizeMB) { $config.maxLogFileSizeMB } else { 100 }
+    if ($config.logRotationEnabled -and (Test-Path $logPath)) {
+        $fileSize = (Get-Item $logPath).Length / 1MB
+        if ($fileSize -gt $maxLogFileSizeMB) {
+            $rotatedPath = $logPath -replace "\.log$", "_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+            Move-Item $logPath $rotatedPath
+            Write-Host "Log rotated: $rotatedPath"
+        }
+    }
+    
     $line | Out-File -FilePath $logPath -Append -Encoding utf8
     Write-Host $line
 }
 
-# --- UNIVERSAL NOTIFICATION SYSTEM ---
-# Konzistentní notifikace pro všechny stavy serveru - hráči dostanou VŽDY zprávu
+# --- ENHANCED NOTIFICATION SYSTEM ---
+# Unified server status notifications based on SCUM log analysis
+function Notify-ServerStatusChange {
+    param(
+        [Parameter(Mandatory)] [string]$newState,   # "Starting", "Loading", "Online", "Offline", "Crashed"
+        [Parameter(Mandatory)] [string]$reason,     # Why the change happened
+        [Parameter()] [hashtable]$extraData = @{}  # Additional data (player count, etc.)
+    )
+    
+    switch ($newState) {
+        "Starting" {
+            Send-Notification admin "serverStarting" @{ reason = $reason }
+            Send-Notification player "serverStarting" @{ reason = $reason }
+            Write-Log "[NOTIFY] Server STARTING - Reason: $reason"
+        }
+        "Loading" {
+            Send-Notification admin "serverLoading" @{ reason = $reason }
+            Send-Notification player "serverLoading" @{ reason = $reason }
+            Write-Log "[NOTIFY] Server LOADING - Reason: $reason"
+        }
+        "Online" {
+            $playerCount = if ($extraData.PlayerCount) { $extraData.PlayerCount } else { 0 }
+            Send-Notification admin "serverOnline" @{ reason = $reason; playerCount = $playerCount }
+            Send-Notification player "serverOnline" @{ reason = $reason; playerCount = $playerCount }
+            Write-Log "[NOTIFY] Server ONLINE ($playerCount players) - Reason: $reason"
+        }
+        "Offline" {
+            Send-Notification admin "serverOffline" @{ reason = $reason }
+            Send-Notification player "serverOffline" @{ reason = $reason }
+            Write-Log "[NOTIFY] Server OFFLINE - Reason: $reason"
+        }
+        "Crashed" {
+            Send-Notification admin "serverCrashed" @{ reason = $reason }
+            Send-Notification player "serverCrashed" @{ reason = $reason }
+            Write-Log "[NOTIFY] Server CRASHED - Reason: $reason"
+        }
+        "Hanging" {
+            Send-Notification admin "serverHanging" @{ reason = $reason }
+            # Players don't need to know about technical hanging state
+            Write-Log "[NOTIFY] Server HANGING - Reason: $reason"
+        }
+    }
+}
+
+# Legacy notification functions for compatibility - now use enhanced system
 function Notify-ServerOnline {
     param([string]$reason = "Unknown")
-    Send-Notification admin "serverStarted" @{ reason = $reason }
-    Send-Notification player "serverStarted" @{ reason = $reason }
-    Write-Log "[NOTIFY] Server ONLINE - Reason: $reason"
+    Notify-ServerStatusChange "Online" $reason
 }
 
 function Notify-ServerOffline {
     param([string]$reason = "Unknown")
-    Send-Notification admin "serverStopped" @{ reason = $reason }
-    Send-Notification player "serverStopped" @{ reason = $reason }
-    Write-Log "[NOTIFY] Server OFFLINE - Reason: $reason"
+    Notify-ServerStatusChange "Offline" $reason
 }
 
 function Notify-ServerRestarting {
     param([string]$reason = "Unknown")
-    Send-Notification admin "serverRestarted" @{ reason = $reason }
-    Send-Notification player "serverRestarted" @{ reason = $reason }
+    Send-Notification admin "serverRestarting" @{ reason = $reason }
+    Send-Notification player "serverRestarting" @{ reason = $reason }
     Write-Log "[NOTIFY] Server RESTARTING - Reason: $reason"
 }
 
@@ -184,9 +288,7 @@ function Notify-UpdateInProgress {
 
 function Notify-ServerCrashed {
     param([string]$reason = "Unexpected crash")
-    Send-Notification admin "serverCrashed" @{ reason = $reason }
-    Send-Notification player "serverCrashed" @{ reason = $reason }
-    Write-Log "[NOTIFY] Server CRASHED - Reason: $reason"
+    Notify-ServerStatusChange "Crashed" $reason
 }
 
 function Notify-AdminActionResult {
@@ -242,6 +344,258 @@ function Backup-Saved {
     }
 }
 
+# --- SCUM LOG MONITORING SYSTEM ---
+# Analyzuje SCUM.log a určí přesný stav serveru
+function Get-SCUMServerStatus {
+    $scumLogPath = Join-Path $savedDir "Logs\SCUM.log"
+    
+    if (!(Test-Path $scumLogPath)) {
+        return @{
+            Status = "LogNotFound"
+            Phase = "Unknown"
+            LastActivity = $null
+            PlayerCount = 0
+            IsOnline = $false
+            Message = "SCUM.log not found"
+        }
+    }
+    
+    try {
+        # Čteme konfigurovatelný počet posledních řádků pro analýzu
+        $maxLines = if ($config.logAnalysisMaxLines) { $config.logAnalysisMaxLines } else { 1000 }
+        $logLines = Get-Content $scumLogPath -Tail $maxLines -ErrorAction Stop
+        if ($logLines.Count -eq 0) {
+            return @{
+                Status = "LogEmpty"
+                Phase = "Unknown" 
+                LastActivity = $null
+                PlayerCount = 0
+                IsOnline = $false
+                Message = "SCUM.log is empty"
+            }
+        }
+        
+        # Analyzujeme log patterns
+        $lastTimestamp = $null
+        $serverPhase = "Unknown"
+        $playerCount = 0
+        $isOnline = $false
+        $crashDetected = $false
+        $hangDetected = $false
+        
+        # Procházíme řádky odzadu (nejnovější první)
+        for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
+            $line = $logLines[$i]
+            
+            # Extrakce timestampu
+            if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
+                if ($lastTimestamp -eq $null) {
+                    try {
+                        $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
+                        $lastTimestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                    } catch {
+                        # Pokud se nepodaří parsovat, použijeme aproximaci
+                        $lastTimestamp = (Get-Date).AddMinutes(-1)
+                    }
+                }
+            }
+            
+            # Detekce klíčových stavů (nejnovější vzorem vyhrává)
+            if ($line -match 'Match State Changed to InProgress') {
+                $serverPhase = "Online"
+                $isOnline = $true
+                break
+            } elseif ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
+                # Server běží a generuje statistiky - to znamená že je online
+                $serverPhase = "Online"
+                $isOnline = $true
+                if ($matches.Count -ge 2) {
+                    $playerCount = [int]$matches[1]
+                }
+                # Nevěšíme break - pokračujeme hledat novější záznamy
+            } elseif ($line -match 'Match State Changed to') {
+                $serverPhase = "Loading"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            } elseif ($line -match 'LogWorld:.*Bringing World.*online') {
+                $serverPhase = "Loading"
+                # Nevěšíme break - Global Stats má vyšší prioritu  
+            } elseif ($line -match 'LogGameState:.*Match State.*WaitingToStart') {
+                $serverPhase = "Loading"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            } elseif ($line -match 'LogWorld:.*World.*initialized') {
+                $serverPhase = "Loading"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            } elseif ($line -match 'LogInit:.*Engine is initialized') {
+                $serverPhase = "Starting"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            } elseif ($line -match 'LogSCUMServer:.*Server.*starting') {
+                $serverPhase = "Starting"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            } elseif ($line -match 'BeginPlay.*World') {
+                $serverPhase = "Starting"
+                # Nevěšíme break - Global Stats má vyšší prioritu
+            }
+            
+            # Detekce crash/error patterns - ale ne běžné SCUM warningy a errory
+            if ($line -match '(Fatal|Critical|Crash|Exception)' -and 
+                $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time') {
+                $crashDetected = $true
+            }
+            
+            # Extrakce počtu hráčů (z Global Stats)
+            if ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
+                $playerCount = [int]$matches[1]
+            } elseif ($line -match 'Players.*?(\d+)') {
+                $playerCount = [int]$matches[1]
+            }
+        }
+        
+        # Detekce hang (žádná aktivita v posledních 30 minutách během expected online stavu)
+        $timeSinceLastActivity = if ($lastTimestamp) { ((Get-Date) - $lastTimestamp).TotalMinutes } else { 999 }
+        if ($timeSinceLastActivity -gt 30 -and $serverPhase -in @("Loading", "Online")) {
+            # Ale jen pokud služba skutečně neběží
+            if (!(Check-ServiceRunning $serviceName)) {
+                $hangDetected = $true
+            }
+        }
+        
+        # Určení finálního stavu
+        $finalStatus = "Unknown"
+        if ($crashDetected) {
+            $finalStatus = "Crashed"
+            $isOnline = $false
+        } elseif ($hangDetected) {
+            $finalStatus = "Hanging"
+            $isOnline = $false
+        } elseif ($serverPhase -eq "Online") {
+            $finalStatus = "Online"
+            $isOnline = $true
+        } elseif ($serverPhase -eq "Loading") {
+            $finalStatus = "Loading"
+            $isOnline = $false
+        } elseif ($serverPhase -eq "Starting") {
+            $finalStatus = "Starting"
+            $isOnline = $false
+        } else {
+            # Pokud není jasný stav, zkontrolujeme Windows službu
+            if (Check-ServiceRunning $serviceName) {
+                # Pokud služba běží ale log je starý, pravděpodobně server běží ale nepíše logy
+                if ($timeSinceLastActivity -le 180) { # 3 hodiny tolerance
+                    $finalStatus = "Online"
+                    $isOnline = $true
+                } else {
+                    $finalStatus = "Starting"
+                    $isOnline = $false
+                }
+            } else {
+                $finalStatus = "Offline"
+                $isOnline = $false
+            }
+        }
+        
+        return @{
+            Status = $finalStatus
+            Phase = $serverPhase
+            LastActivity = $lastTimestamp
+            PlayerCount = $playerCount
+            IsOnline = $isOnline
+            Message = "Status determined from SCUM.log analysis"
+            TimeSinceLastActivity = $timeSinceLastActivity
+        }
+        
+    } catch {
+        Write-Log "[ERROR] Failed to analyze SCUM.log: $_"
+        return @{
+            Status = "LogError"
+            Phase = "Unknown"
+            LastActivity = $null
+            PlayerCount = 0
+            IsOnline = $false
+            Message = "Error reading SCUM.log: $_"
+        }
+    }
+}
+
+# Monitoruje startup serveru na základě logu až do skutečného online stavu
+function Monitor-SCUMServerStartup {
+    param(
+        [string]$context = "startup",
+        [int]$maxWaitMinutes = 0,  # 0 = use config value
+        [int]$checkIntervalSeconds = 15
+    )
+    
+    # Použít konfigurovatelný timeout
+    if ($maxWaitMinutes -eq 0) {
+        $maxWaitMinutes = if ($config.serverStartupTimeoutMinutes) { $config.serverStartupTimeoutMinutes } else { 10 }
+    }
+    
+    Write-Log "[INFO] Starting SCUM server log-based startup monitoring for $context..."
+    Write-Log "[INFO] Will monitor for up to $maxWaitMinutes minutes, checking every $checkIntervalSeconds seconds"
+    
+    $startTime = Get-Date
+    $maxWaitTime = $startTime.AddMinutes($maxWaitMinutes)
+    $lastReportedStatus = ""
+    
+    while ((Get-Date) -lt $maxWaitTime) {
+        $status = Get-SCUMServerStatus
+        
+        # Report status change
+        if ($status.Status -ne $lastReportedStatus) {
+            Write-Log "[INFO] Server status changed: $($status.Status) (Phase: $($status.Phase), Players: $($status.PlayerCount))"
+            $lastReportedStatus = $status.Status
+        }
+        
+        # Kontrola úspěšného startu
+        if ($status.IsOnline -and $status.Status -eq "Online") {
+            $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+            Write-Log "[SUCCESS] Server is truly ONLINE after $elapsedMinutes minutes! (Match State: InProgress)"
+            return @{
+                Success = $true
+                Status = $status
+                ElapsedMinutes = $elapsedMinutes
+            }
+        }
+        
+        # Kontrola crash/hang
+        if ($status.Status -in @("Crashed", "Hanging")) {
+            $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+            Write-Log "[ERROR] Server startup failed after $elapsedMinutes minutes - Status: $($status.Status)"
+            return @{
+                Success = $false
+                Status = $status
+                ElapsedMinutes = $elapsedMinutes 
+                Reason = "Server $($status.Status.ToLower()) during startup"
+            }
+        }
+        
+        # Kontrola že služba stále běží
+        if (!(Check-ServiceRunning $serviceName)) {
+            $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+            Write-Log "[ERROR] Windows service stopped running during startup monitoring after $elapsedMinutes minutes"
+            return @{
+                Success = $false
+                Status = $status
+                ElapsedMinutes = $elapsedMinutes
+                Reason = "Windows service stopped during startup"
+            }
+        }
+        
+        Start-Sleep -Seconds $checkIntervalSeconds
+    }
+    
+    # Timeout
+    $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+    $finalStatus = Get-SCUMServerStatus
+    Write-Log "[ERROR] Server startup monitoring timed out after $elapsedMinutes minutes. Final status: $($finalStatus.Status)"
+    
+    return @{
+        Success = $false
+        Status = $finalStatus
+        ElapsedMinutes = $elapsedMinutes
+        Reason = "Startup timeout after $maxWaitMinutes minutes"
+    }
+}
+
 # --- SERVICE MANAGEMENT ---
 # Check if the Windows service is running
 function Check-ServiceRunning {
@@ -249,6 +603,33 @@ function Check-ServiceRunning {
     $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
     if ($null -eq $svc) { return $false }
     return $svc.Status -eq 'Running'
+}
+
+# Check if server was stopped intentionally (not a crash)
+function Test-IntentionalStop {
+    param([string]$serviceName)
+    
+    # Check recent Windows Event Log for manual stop events
+    try {
+        $recentEvents = Get-EventLog -LogName System -Source "Service Control Manager" -After (Get-Date).AddMinutes(-5) -ErrorAction SilentlyContinue | 
+                      Where-Object { $_.Message -like "*$serviceName*" -and $_.EventID -eq 7036 -and $_.Message -like "*stopped*" } | 
+                      Select-Object -First 1
+        
+        if ($recentEvents) {
+            # Check if the event message indicates manual stop vs crash
+            $eventMessage = $recentEvents.Message
+            if ($eventMessage -like "*stopped*" -and $eventMessage -notlike "*unexpected*" -and $eventMessage -notlike "*error*") {
+                Write-Log "[DEBUG] Recent service stop event found - appears to be intentional stop"
+                return $true
+            }
+        }
+    } catch {
+        Write-Log "[DEBUG] Could not check Event Log for stop reason: $_"
+    }
+    
+    # If we can't determine from events, assume it's intentional if stopped recently
+    # and server was running normally before
+    return $false
 }
 
 # --- BUILD VERSION TRACKING ---
@@ -308,15 +689,17 @@ function Update-Server {
             Write-Log "[INFO] First install/update successful. Starting service..."
             Send-Notification admin "firstInstallComplete" @{}
             cmd /c "net start $serviceName"
-            Start-Sleep -Seconds 10
-            if (Check-ServiceRunning $serviceName) {
-                Write-Log "[INFO] Server service is running after first install."
-                Notify-ServerOnline "First install completed"
+            
+            # Enhanced startup monitoring for first install
+            $startupResult = Monitor-SCUMServerStartup "first install" 8 15
+            if ($startupResult.Success) {
+                Write-Log "[INFO] SCUM server is online after first install."
+                Notify-ServerStatusChange "Online" "First install completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
                 Notify-AdminActionResult "first install" "completed successfully" "ONLINE"
             } else {
-                Write-Log "[ERROR] Server service failed to start after first install!"
-                Send-Notification admin "installError" @{ error = "The server service failed to start after first install!" }
-                Notify-AdminActionResult "first install" "failed - service not running" "OFFLINE"
+                Write-Log "[ERROR] SCUM server failed to start after first install: $($startupResult.Reason)"
+                Send-Notification admin "installError" @{ error = "Server failed to start after first install: $($startupResult.Reason)" }
+                Notify-AdminActionResult "first install" "failed - $($startupResult.Reason)" "OFFLINE"
             }
             return $true
         } else {
@@ -374,15 +757,17 @@ function Update-Server {
     if ($exitCode -eq 0) {
         Write-Log "[INFO] Server update successful. Starting service..."
         cmd /c "net start $serviceName"
-        Start-Sleep -Seconds 10
-        if (Check-ServiceRunning $serviceName) {
-            Write-Log "[INFO] Server service is running after update."
-            Notify-ServerOnline "Update completed"
+        
+        # Enhanced startup monitoring after update
+        $startupResult = Monitor-SCUMServerStartup "update" 8 15
+        if ($startupResult.Success) {
+            Write-Log "[INFO] SCUM server is online after update."
+            Notify-ServerStatusChange "Online" "Update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
             Notify-AdminActionResult "update" "completed successfully" "ONLINE"
         } else {
-            Write-Log "[ERROR] Server service failed to start after update!"
-            Send-Notification admin "updateError" @{ error = "The server service failed to start after update!" }
-            Notify-AdminActionResult "update" "failed - service not running" "OFFLINE"
+            Write-Log "[ERROR] SCUM server failed to start after update: $($startupResult.Reason)"
+            Send-Notification admin "updateError" @{ error = "Server failed to start after update: $($startupResult.Reason)" }
+            Notify-AdminActionResult "update" "failed - $($startupResult.Reason)" "OFFLINE"
         }
         return $true
     } else {
@@ -411,17 +796,20 @@ function Execute-ImmediateUpdate {
         Write-Log "[INFO] Server update successful. Starting service..."
         
         cmd /c "net start $serviceName"
-        Start-Sleep -Seconds 10
-        if (Check-ServiceRunning $serviceName) {
-            Write-Log "[INFO] Server service is running after update."
+        
+        # Enhanced startup monitoring after delayed update
+        $startupResult = Monitor-SCUMServerStartup "delayed update" 8 15
+        if ($startupResult.Success) {
+            Write-Log "[INFO] SCUM server is online after update."
+            Notify-ServerStatusChange "Online" "Delayed update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
             Send-Notification player "updateCompleted" @{}
             # Clear intentionally stopped flag after successful update
             $global:ServerIntentionallyStopped = $false
             Notify-AdminActionResult "update" "completed successfully" "ONLINE"
         } else {
-            Write-Log "[ERROR] Server service failed to start after update!"
-            Send-Notification admin "updateError" @{ error = "The server service failed to start after update!" }
-            Notify-AdminActionResult "update" "failed - service not running" "OFFLINE"
+            Write-Log "[ERROR] SCUM server failed to start after update: $($startupResult.Reason)"
+            Send-Notification admin "updateError" @{ error = "Server failed to start after update: $($startupResult.Reason)" }
+            Notify-AdminActionResult "update" "failed - $($startupResult.Reason)" "OFFLINE"
         }
         
         # Reset update scheduling variables
@@ -565,15 +953,16 @@ function Poll-AdminCommands {
                             cmd /c "net stop $serviceName"
                             Start-Sleep -Seconds 10
                             cmd /c "net start $serviceName"
-                            Start-Sleep -Seconds 10
+                            Start-Sleep -Seconds 5
                             
-                            # Check result and notify accordingly
-                            if (Check-ServiceRunning $serviceName) {
-                                Notify-ServerOnline "Admin restart command"
+                            # Check result with SCUM log monitoring
+                            $startupResult = Monitor-SCUMServerStartup "admin restart" 6 10
+                            if ($startupResult.Success) {
+                                Notify-ServerStatusChange "Online" "Admin restart command" @{ PlayerCount = $startupResult.Status.PlayerCount }
                                 Notify-AdminActionResult "restart" "completed successfully" "ONLINE"
                             } else {
-                                Notify-ServerOffline "Admin restart failed"
-                                Notify-AdminActionResult "restart" "failed - service not running" "OFFLINE"
+                                Notify-ServerStatusChange "Offline" "Admin restart failed"
+                                Notify-AdminActionResult "restart" "failed - $($startupResult.Reason)" "OFFLINE"
                             }
                         }
                     } elseif ($content -like "${commandPrefix}server_stop*") {
@@ -598,11 +987,10 @@ function Poll-AdminCommands {
                             # Set flag to prevent auto-restart
                             $global:ServerIntentionallyStopped = $true
                             Write-Log "[INFO] Server intentionally stopped by admin - auto-restart disabled until manual start"
-                            cmd /c "net stop $serviceName"
-                            Start-Sleep -Seconds 5
+                            Stop-SCUMServerWithTimeout "Admin stop command"
                             
                             # Always notify about server being stopped
-                            Notify-ServerOffline "Admin stop command"
+                            Notify-ServerStatusChange "Offline" "Admin stop command"
                             Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
                         }
                     } elseif ($content -like "${commandPrefix}server_start*") {
@@ -614,15 +1002,16 @@ function Poll-AdminCommands {
                         $global:ServerIntentionallyStopped = $false
                         Write-Log "[INFO] Auto-restart re-enabled after admin start command"
                         cmd /c "net start $serviceName"
-                        Start-Sleep -Seconds 10
+                        Start-Sleep -Seconds 5
                         
-                        # Check result and notify
-                        if (Check-ServiceRunning $serviceName) {
-                            Notify-ServerOnline "Admin start command"
+                        # Check result with SCUM log monitoring
+                        $startupResult = Monitor-SCUMServerStartup "admin start" 6 10
+                        if ($startupResult.Success) {
+                            Notify-ServerStatusChange "Online" "Admin start command" @{ PlayerCount = $startupResult.Status.PlayerCount }
                             Notify-AdminActionResult "start" "completed successfully" "ONLINE"
                         } else {
-                            Notify-ServerOffline "Admin start failed"
-                            Notify-AdminActionResult "start" "failed - service not running" "OFFLINE"
+                            Notify-ServerStatusChange "Offline" "Admin start failed"
+                            Notify-AdminActionResult "start" "failed - $($startupResult.Reason)" "OFFLINE"
                         }
                     } elseif ($content -like "${commandPrefix}server_update*") {
                         # Parse delay parameter for update command
@@ -712,6 +1101,33 @@ function Poll-AdminCommands {
                         Send-Notification admin "adminBackup" @{ admin = $authorId }
                         # Execute backup
                         Backup-Saved | Out-Null
+                    } elseif ($content -like "${commandPrefix}server_reset_autorestart*") {
+                        Write-Log "[ADMIN CMD] ${commandPrefix}server_reset_autorestart by $authorId"
+                        $previousAttempts = $global:ConsecutiveRestartAttempts
+                        $global:ConsecutiveRestartAttempts = 0
+                        $global:LastAutoRestartAttempt = $null
+                        $global:ServerIntentionallyStopped = $false
+                        Write-Log "[INFO] Auto-restart counters reset by admin. Previous attempts: $previousAttempts"
+                        Send-Notification admin "otherEvent" @{ event = "Admin $authorId reset auto-restart counters (was: $previousAttempts attempts). Auto-restart is now re-enabled." }
+                    } elseif ($content -like "${commandPrefix}server_status*") {
+                        Write-Log "[ADMIN CMD] ${commandPrefix}server_status by $authorId"
+                        $serverStatus = Get-SCUMServerStatus
+                        $serviceRunning = Check-ServiceRunning $serviceName
+                        $timeSinceLastAttempt = if ($global:LastAutoRestartAttempt) { [Math]::Round(((Get-Date) - $global:LastAutoRestartAttempt).TotalMinutes, 1) } else { "N/A" }
+                        $intentionallyStopped = if ($global:ServerIntentionallyStopped) { "YES" } else { "NO" }
+                        
+                        $statusReport = @"
+**Server Status Report:**
+• SCUM Server Status: $($serverStatus.Status) ($($serverStatus.Phase))
+• Windows Service: $(if ($serviceRunning) { "RUNNING" } else { "STOPPED" })
+• Players Online: $($serverStatus.PlayerCount)
+• Last Activity: $($serverStatus.LastActivity)
+• Intentionally Stopped: $intentionallyStopped
+• Auto-restart Attempts: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)
+• Minutes Since Last Attempt: $timeSinceLastAttempt
+• Cooldown Period: $($global:AutoRestartCooldownMinutes) minutes
+"@
+                        Send-Notification admin "otherEvent" @{ event = $statusReport }
                     }
                 }
             }
@@ -776,6 +1192,12 @@ $global:AdminStopWarning5Sent = $false
 $global:AdminUpdateScheduledTime = $null
 $global:AdminUpdateWarning5Sent = $false
 
+# Track auto-restart attempts to prevent spam
+$global:LastAutoRestartAttempt = $null
+$global:AutoRestartCooldownMinutes = if ($config.autoRestartCooldownMinutes) { $config.autoRestartCooldownMinutes } else { 2 }
+$global:MaxConsecutiveRestartAttempts = if ($config.maxConsecutiveRestartAttempts) { $config.maxConsecutiveRestartAttempts } else { 3 }
+$global:ConsecutiveRestartAttempts = 0
+
 # Initialize baseline - get the latest message ID when script starts
 function Initialize-MessageBaseline {
     if (-not $botToken -or -not $adminCommandChannel.channelIds) {
@@ -808,6 +1230,8 @@ function Initialize-MessageBaseline {
 Write-Log "--- Script started ---"
 Write-Log ("[INFO] Restart times configured: {0}" -f ($restartTimes -join ', '))
 Write-Log ("[INFO] Admin command prefix: '{0}'" -f $commandPrefix)
+$periodicBackupStatus = if ($periodicBackupEnabled) { "ENABLED (every $backupIntervalMinutes minutes)" } else { "DISABLED" }
+Write-Log ("[INFO] Periodic backup: {0}" -f $periodicBackupStatus)
 
 # Initialize Discord message baseline to only process new messages
 Initialize-MessageBaseline
@@ -864,6 +1288,10 @@ if ($runBackupOnStart -and -not $firstInstall) {
     Write-Log "[INFO] Running initial backup (runBackupOnStart enabled) before any update or service start."
     Backup-Saved | Out-Null
     $global:LastBackupTime = Get-Date
+} elseif ($periodicBackupEnabled) {
+    # Initialize LastBackupTime to prevent immediate periodic backup
+    $global:LastBackupTime = Get-Date
+    Write-Log "[INFO] Periodic backup enabled, timer initialized"
 }
 
 # Run initial update check if enabled
@@ -879,20 +1307,23 @@ if ($runUpdateOnStart -and -not $firstInstall) {
         Update-Server | Out-Null
         $global:LastUpdateCheck = Get-Date
     } elseif ($installedBuild -eq $latestBuild) {
-        Write-Log "[INFO] No new update available. Skipping update."        if (-not (Check-ServiceRunning $serviceName)) {
+        Write-Log "[INFO] No new update available. Skipping update."
+        if (-not (Check-ServiceRunning $serviceName)) {
             Write-Log "[INFO] Starting server service after backup and update check."
             cmd /c "net start $serviceName"
-            Start-Sleep -Seconds 10
-            if (Check-ServiceRunning $serviceName) {
-                Write-Log "[INFO] Server service started successfully after backup and update check."
-                Notify-ServerOnline "Startup after update check"
+            
+            # Enhanced startup monitoring
+            $startupResult = Monitor-SCUMServerStartup "startup after update check" 8 15
+            if ($startupResult.Success) {
+                Write-Log "[INFO] SCUM server started successfully after backup and update check."
+                Notify-ServerStatusChange "Online" "Startup after update check" @{ PlayerCount = $startupResult.Status.PlayerCount }
                 Notify-AdminActionResult "startup after update check" "completed successfully" "ONLINE"
             } else {
-                Write-Log "[ERROR] Server service failed to start after backup and update check!"
+                Write-Log "[ERROR] SCUM server failed to start after backup and update check: $($startupResult.Reason)"
                 Send-Notification admin "startError" @{
-                    error = "The SCUM server service failed to start after backup and update check!"
+                    error = "The SCUM server failed to start after backup and update check: $($startupResult.Reason)"
                 }
-                Notify-AdminActionResult "startup after update check" "failed - service not running" "OFFLINE"
+                Notify-AdminActionResult "startup after update check" "failed - $($startupResult.Reason)" "OFFLINE"
             }
         } else {
             Write-Log "[INFO] Server service is already running after update check."
@@ -913,17 +1344,19 @@ if ($runUpdateOnStart -and -not $firstInstall) {
     if (-not (Check-ServiceRunning $serviceName)) {
         Write-Log "[INFO] Starting server service after backup (no update on start)."
         cmd /c "net start $serviceName"
-        Start-Sleep -Seconds 10
-        if (Check-ServiceRunning $serviceName) {
-            Write-Log "[INFO] Server service started successfully after backup."
-            Notify-ServerOnline "Startup after backup"
+        
+        # Enhanced startup monitoring
+        $startupResult = Monitor-SCUMServerStartup "startup after backup" 8 15
+        if ($startupResult.Success) {
+            Write-Log "[INFO] SCUM server started successfully after backup."
+            Notify-ServerStatusChange "Online" "Startup after backup" @{ PlayerCount = $startupResult.Status.PlayerCount }
             Notify-AdminActionResult "startup after backup" "completed successfully" "ONLINE"
         } else {
-            Write-Log "[ERROR] Server service failed to start after backup!"
+            Write-Log "[ERROR] SCUM server failed to start after backup: $($startupResult.Reason)"
             Send-Notification admin "startError" @{
-                error = "The SCUM server service failed to start after backup!"
+                error = "The SCUM server failed to start after backup: $($startupResult.Reason)"
             }
-            Notify-AdminActionResult "startup after backup" "failed - service not running" "OFFLINE"
+            Notify-AdminActionResult "startup after backup" "failed - $($startupResult.Reason)" "OFFLINE"
         }
     } else {
         Write-Log "[INFO] Server service is already running, no action needed."
@@ -987,13 +1420,14 @@ while ($true) {
             cmd /c "net start $serviceName"
             Start-Sleep -Seconds 10
             
-            # Check result and notify
-            if (Check-ServiceRunning $serviceName) {
-                Notify-ServerOnline "Admin scheduled restart"
+            # Check result with SCUM log monitoring
+            $startupResult = Monitor-SCUMServerStartup "admin scheduled restart" 6 10
+            if ($startupResult.Success) {
+                Notify-ServerStatusChange "Online" "Admin scheduled restart" @{ PlayerCount = $startupResult.Status.PlayerCount }
                 Notify-AdminActionResult "scheduled restart" "completed successfully" "ONLINE"
             } else {
-                Notify-ServerOffline "Admin scheduled restart failed"
-                Notify-AdminActionResult "scheduled restart" "failed - service not running" "OFFLINE"
+                Notify-ServerStatusChange "Offline" "Admin scheduled restart failed"
+                Notify-AdminActionResult "scheduled restart" "failed - $($startupResult.Reason)" "OFFLINE"
             }
             
             # Clear scheduling
@@ -1025,7 +1459,7 @@ while ($true) {
             
             # Always notify about server being stopped
             Notify-ServerOffline "Admin scheduled stop"
-            Notify-AdminActionResult "scheduled stop" "completed successfully" "OFFLINE"
+            Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
             
             # Clear scheduling
             $global:AdminStopScheduledTime = $null
@@ -1094,19 +1528,21 @@ while ($true) {
         cmd /c "net start $serviceName"
         Start-Sleep -Seconds 10
         
-        if (Check-ServiceRunning $serviceName) {
-            Write-Log "[INFO] Server service is running after scheduled restart."
+        # Check result with SCUM log monitoring
+        $startupResult = Monitor-SCUMServerStartup "scheduled restart" 8 15
+        if ($startupResult.Success) {
+            Write-Log "[INFO] SCUM server is online after scheduled restart."
             # Clear intentionally stopped flag after successful restart
             $global:ServerIntentionallyStopped = $false
             
             # Notify that server is back online
-            Notify-ServerOnline "Scheduled restart completed"
+            Notify-ServerStatusChange "Online" "Scheduled restart completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
             Notify-AdminActionResult "scheduled restart" "completed successfully" "ONLINE"
         } else {
-            Write-Log "[ERROR] Server service failed to start after scheduled restart!"
-            Send-Notification admin "restartError" @{ error = "Server service failed to start after scheduled restart!" }
-            Notify-ServerOffline "Scheduled restart failed"
-            Notify-AdminActionResult "scheduled restart" "failed - service not running" "OFFLINE"
+            Write-Log "[ERROR] SCUM server failed to start after scheduled restart: $($startupResult.Reason)"
+            Send-Notification admin "restartError" @{ error = "SCUM server failed to start after scheduled restart: $($startupResult.Reason)" }
+            Notify-ServerStatusChange "Offline" "Scheduled restart failed"
+            Notify-AdminActionResult "scheduled restart" "failed - $($startupResult.Reason)" "OFFLINE"
         }
         
         # Mark restart as performed and calculate next restart
@@ -1120,7 +1556,7 @@ while ($true) {
     }
     
     # --- PERIODIC BACKUP EXECUTION ---
-    if ($global:LastBackupTime -eq $null -or ((Get-Date) - $global:LastBackupTime).TotalMinutes -ge $backupIntervalMinutes) {
+    if ($periodicBackupEnabled -and ($global:LastBackupTime -ne $null) -and ((Get-Date) - $global:LastBackupTime).TotalMinutes -ge $backupIntervalMinutes) {
         if (-not $updateOrRestart) {
             Write-Log "[INFO] Running periodic backup..."
             if (Backup-Saved) {
@@ -1188,33 +1624,161 @@ while ($true) {
                     Write-Log "[INFO] Server is intentionally stopped by admin command - auto-restart disabled"
                 }
             } else {
-                # Server crashed or stopped unexpectedly - attempt auto-restart
-                Write-Log "[WARNING] Server service is not running! Attempting to start..."
-                Notify-ServerCrashed "Service stopped unexpectedly"
-                cmd /c "net start $serviceName"
-                Start-Sleep -Seconds 10
-                if (Check-ServiceRunning $serviceName) {
-                    Write-Log "[INFO] Server service auto-restarted after crash."
-                    Notify-ServerOnline "Auto-restart after crash"
-                    Notify-AdminActionResult "auto-restart" "completed successfully" "ONLINE"
-                } else {
-                    Write-Log "[ERROR] Server service failed to auto-restart!"
-                    Send-Notification admin "autoRestartError" @{ error = "The SCUM server service failed to auto-restart after a crash!" }
-                    Notify-AdminActionResult "auto-restart" "failed - service not running" "OFFLINE"
+                # Check auto-restart rate limiting
+                $canAttemptRestart = $true
+                $timeSinceLastAttempt = if ($global:LastAutoRestartAttempt) { ((Get-Date) - $global:LastAutoRestartAttempt).TotalMinutes } else { 999 }
+                
+                if ($global:ConsecutiveRestartAttempts -ge $global:MaxConsecutiveRestartAttempts) {
+                    # Too many failed attempts - give up until manual intervention
+                    if ($now.Second -eq 0 -and $now.Minute % 10 -eq 0) {
+                        Write-Log "[WARNING] Auto-restart disabled after $($global:ConsecutiveRestartAttempts) failed attempts. Manual intervention required."
+                    }
+                    $canAttemptRestart = $false
+                } elseif ($timeSinceLastAttempt -lt $global:AutoRestartCooldownMinutes) {
+                    # Still in cooldown period
+                    if ($now.Second -eq 0 -and $now.Minute -eq 0) {
+                        $waitMinutes = [Math]::Ceiling($global:AutoRestartCooldownMinutes - $timeSinceLastAttempt)
+                        Write-Log "[INFO] Auto-restart cooldown: waiting $waitMinutes more minutes before next attempt"
+                    }
+                    $canAttemptRestart = $false
+                }
+                
+                if ($canAttemptRestart) {
+                    # Check if this might be an intentional stop
+                    $intentionalStop = Test-IntentionalStop $serviceName
+                    if ($intentionalStop) {
+                        Write-Log "[INFO] Server appears to be intentionally stopped - setting intentional stop flag"
+                        $global:ServerIntentionallyStopped = $true
+                        # Reset restart attempt counters
+                        $global:ConsecutiveRestartAttempts = 0
+                        $global:LastAutoRestartAttempt = $null
+                    } else {
+                        # Server crashed or stopped unexpectedly - attempt auto-restart
+                        $global:LastAutoRestartAttempt = Get-Date
+                        $global:ConsecutiveRestartAttempts++
+                        
+                        # Get more detailed service information for debugging
+                        try {
+                            $serviceInfo = Get-Service -Name $serviceName -ErrorAction Stop
+                            $serviceStatus = $serviceInfo.Status
+                            Write-Log "[WARNING] Server service is not running! Service status: $serviceStatus, Attempt: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)"
+                        } catch {
+                            Write-Log "[WARNING] Server service '$serviceName' not found or inaccessible: $_"
+                        }
+                        
+                        Write-Log "[INFO] Attempting to start server service (cooldown period: $($global:AutoRestartCooldownMinutes) minutes)..."
+                        Notify-ServerCrashed "Service stopped unexpectedly"
+                        
+                        # Try to start the service and monitor the result
+                        try {
+                            $startResult = cmd /c "net start $serviceName" 2>&1
+                            Write-Log "[DEBUG] Service start command output: $startResult"
+                        } catch {
+                            Write-Log "[ERROR] Service start command failed: $_"
+                        }
+                        
+                        # Monitor auto-restart result with SCUM log monitoring  
+                        $startupResult = Monitor-SCUMServerStartup "auto-restart after crash" 6 10
+                        if ($startupResult.Success) {
+                            Write-Log "[INFO] SCUM server auto-restarted successfully after crash."
+                            # Reset consecutive failure counter on success
+                            $global:ConsecutiveRestartAttempts = 0
+                            $global:LastAutoRestartAttempt = $null
+                            Notify-ServerStatusChange "Online" "Auto-restart after crash" @{ PlayerCount = $startupResult.Status.PlayerCount }
+                            Notify-AdminActionResult "auto-restart" "completed successfully" "ONLINE"
+                        } else {
+                            Write-Log "[ERROR] SCUM server failed to auto-restart after crash: $($startupResult.Reason)"
+                            # Try to get more info about why it failed
+                            try {
+                                $serviceInfo = Get-Service -Name $serviceName -ErrorAction Stop
+                                Write-Log "[ERROR] Service status after failed restart: $($serviceInfo.Status)"
+                            } catch {
+                                Write-Log "[ERROR] Could not get service status after failed restart: $_"
+                            }
+                            
+                            # Only send admin notification if this is the final attempt
+                            if ($global:ConsecutiveRestartAttempts -ge $global:MaxConsecutiveRestartAttempts) {
+                                Send-Notification admin "autoRestartError" @{ error = "The SCUM server failed to auto-restart after $($global:ConsecutiveRestartAttempts) attempts: $($startupResult.Reason). Manual intervention required." }
+                            }
+                            Notify-AdminActionResult "auto-restart" "failed - $($startupResult.Reason)" "OFFLINE"
+                        }
+                    }
                 }
             }
         } else {
-            # Service is running - clear the intentionally stopped flag if it was set
+            # Service is running - clear flags and reset counters
             if ($global:ServerIntentionallyStopped) {
                 $global:ServerIntentionallyStopped = $false
                 Write-Log "[INFO] Server is running - auto-restart protection cleared"
             }
             
+            # Reset restart attempt counters when service is running normally
+            if ($global:ConsecutiveRestartAttempts -gt 0 -or $global:LastAutoRestartAttempt -ne $null) {
+                Write-Log "[INFO] Server running normally - resetting auto-restart counters"
+                $global:ConsecutiveRestartAttempts = 0
+                $global:LastAutoRestartAttempt = $null
+            }
+            
             # Service healthy - reduce log frequency to avoid spam
-            if ($now.Second -eq 0 -and $now.Minute % 10 -eq 0) { # Log every 10 minutes to avoid spam
+            if ($now.Second -eq 0 -and $now.Minute % 30 -eq 0) { # Log every 30 minutes to avoid spam
                 # Write-Log "[DEBUG] Server service running normally."
             }
         }
     }
     Start-Sleep -Seconds 1
+}
+
+# Helper function for server shutdown with configurable timeout
+function Stop-SCUMServerWithTimeout {
+    param([string]$reason = "manual stop")
+    
+    $shutdownTimeoutMinutes = if ($config.serverShutdownTimeoutMinutes) { $config.serverShutdownTimeoutMinutes } else { 5 }
+    
+    Write-Log "[INFO] Stopping SCUM server (timeout: $shutdownTimeoutMinutes minutes) - Reason: $reason"
+    
+    # Start the stop command
+    $stopProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "net stop $serviceName" -PassThru -NoNewWindow
+    
+    # Wait for completion with timeout
+    $stopCompleted = $stopProcess.WaitForExit($shutdownTimeoutMinutes * 60 * 1000)  # Convert to milliseconds
+    
+    if ($stopCompleted) {
+        Write-Log "[INFO] Server stopped successfully in $([Math]::Round((Get-Date - $stopProcess.StartTime).TotalSeconds, 1)) seconds"
+        return $true
+    } else {
+        Write-Log "[WARNING] Server stop timed out after $shutdownTimeoutMinutes minutes, forcing kill"
+        try {
+            $stopProcess.Kill()
+            # Force kill the service process if it's still running
+            $scumProcesses = Get-Process -Name "SCUMServer" -ErrorAction SilentlyContinue
+            if ($scumProcesses) {
+                $scumProcesses | ForEach-Object { 
+                    Write-Log "[WARNING] Force killing SCUM process PID: $($_.Id)"
+                    $_.Kill() 
+                }
+            }
+            return $true
+        } catch {
+            Write-Log "[ERROR] Failed to force kill server: $_"
+            return $false
+        }
+    }
+}
+
+# Global cache for player count to avoid excessive log parsing
+$global:LastPlayerCountCheck = $null
+$global:CachedPlayerCount = 0
+
+function Get-CachedPlayerCount {
+    $checkInterval = if ($config.playerCountCheckIntervalMinutes) { $config.playerCountCheckIntervalMinutes } else { 5 }
+    
+    $now = Get-Date
+    if ($global:LastPlayerCountCheck -eq $null -or ($now - $global:LastPlayerCountCheck).TotalMinutes -ge $checkInterval) {
+        $status = Get-SCUMServerStatus
+        $global:CachedPlayerCount = $status.PlayerCount
+        $global:LastPlayerCountCheck = $now
+        Write-Log "[DEBUG] Player count updated: $($global:CachedPlayerCount)"
+    }
+    
+    return $global:CachedPlayerCount
 }
