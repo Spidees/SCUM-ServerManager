@@ -357,6 +357,8 @@ function Get-SCUMServerStatus {
             PlayerCount = 0
             IsOnline = $false
             Message = "SCUM.log not found"
+            PerformanceStats = $null
+            PerformanceSummary = $null
         }
     }
     
@@ -372,6 +374,8 @@ function Get-SCUMServerStatus {
                 PlayerCount = 0
                 IsOnline = $false
                 Message = "SCUM.log is empty"
+                PerformanceStats = $null
+                PerformanceSummary = $null
             }
         }
         
@@ -382,6 +386,16 @@ function Get-SCUMServerStatus {
         $isOnline = $false
         $crashDetected = $false
         $hangDetected = $false
+        
+        # Get performance statistics
+        $performanceStats = Get-ServerPerformanceStats -logPath $scumLogPath -maxLines 200
+        
+        # If we have performance stats, server is definitely online
+        if ($null -ne $performanceStats) {
+            $serverPhase = "Online"
+            $isOnline = $true
+            $playerCount = $performanceStats.PlayerCount
+        }
         
         # Process lines backwards (newest first)
         for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
@@ -511,6 +525,8 @@ function Get-SCUMServerStatus {
             IsOnline = $isOnline
             Message = "Status determined from SCUM.log analysis"
             TimeSinceLastActivity = $timeSinceLastActivity
+            PerformanceStats = $performanceStats
+            PerformanceSummary = if ($performanceStats) { Get-PerformanceSummary $performanceStats } else { $null }
         }
         
     } catch {
@@ -522,6 +538,8 @@ function Get-SCUMServerStatus {
             PlayerCount = 0
             IsOnline = $false
             Message = "Error reading SCUM.log: $_"
+            PerformanceStats = $null
+            PerformanceSummary = $null
         }
     }
 }
@@ -551,7 +569,11 @@ function Monitor-SCUMServerStartup {
         
         # Report status change
         if ($status.Status -ne $lastReportedStatus) {
-            Write-Log "[INFO] Server status changed: $($status.Status) (Phase: $($status.Phase), Players: $($status.PlayerCount))"
+            $statusMsg = "Server status changed: $($status.Status) (Phase: $($status.Phase), Players: $($status.PlayerCount))"
+            if ($status.PerformanceSummary) {
+                $statusMsg += " - Performance: $($status.PerformanceSummary)"
+            }
+            Write-Log "[INFO] $statusMsg"
             $lastReportedStatus = $status.Status
         }
         
@@ -1052,31 +1074,73 @@ function Poll-AdminCommands {
                             # Set flag to prevent auto-restart
                             $global:ServerIntentionallyStopped = $true
                             Write-Log "[INFO] Server intentionally stopped by admin - auto-restart disabled until manual start"
-                            Stop-SCUMServerWithTimeout "Admin stop command"
                             
-                            # Always notify about server being stopped
+                            # Check if server is already stopped
+                            if (-not (Check-ServiceRunning $serviceName)) {
+                                Write-Log "[INFO] Server service is already stopped"
+                                Send-Notification admin "otherEvent" @{ event = "Admin $authorId tried to stop server, but it's already stopped" }
+                                Notify-AdminActionResult "stop" "already stopped" "OFFLINE"
+                            } else {
+                                cmd /c "net stop $serviceName"
+                                Start-Sleep -Seconds 5
+                                
+                                # Verify stop was successful
+                                if (-not (Check-ServiceRunning $serviceName)) {
+                                    # Always notify about server being stopped
+                                    Notify-ServerStatusChange "Offline" "Admin stop command"
+                                    Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
+                                } else {
+                                    Write-Log "[ERROR] Failed to stop server service"
+                                    Send-Notification admin "otherEvent" @{ event = "Admin $authorId tried to stop server, but service stop failed" }
+                                    Notify-AdminActionResult "stop" "failed - service still running" "UNKNOWN"
+                                }
+                            }
                             Notify-ServerStatusChange "Offline" "Admin stop command"
                             Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
                         }
                     } elseif ($content -like "${commandPrefix}server_start*") {
-                        Write-Log "[ADMIN CMD] ${commandPrefix}server_start by $authorId"
-                        Send-Notification admin "adminStart" @{ admin = $authorId }
+                        # Parse delay parameter
+                        $parts = $content -split '\s+'
+                        $delayMinutes = 0
+                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0 -and $delayMinutes -le 180) {
+                            # Delayed start
+                            Write-Log "[ADMIN CMD] ${commandPrefix}server_start $delayMinutes by $authorId"
+                            Send-Notification admin "adminStart" @{ admin = $authorId }
+                            Send-Notification player "adminStartWarning" @{ delayMinutes = $delayMinutes }
+                            
+                            # For start, we'll implement immediate start with notification (no scheduled delay)
+                            Write-Log "[INFO] Admin requested delayed start - executing immediately with notification"
+                            $delayText = " (delay ignored for start command)"
+                        } else {
+                            # Immediate start
+                            Write-Log "[ADMIN CMD] ${commandPrefix}server_start (immediate) by $authorId"
+                            $delayText = " immediately"
+                        }
+                        
+                        Send-Notification admin "adminStart" @{ admin = $authorId; delay = $delayText }
                         Send-Notification player "adminStartNow" @{}
                         
                         # Clear the intentionally stopped flag
                         $global:ServerIntentionallyStopped = $false
                         Write-Log "[INFO] Auto-restart re-enabled after admin start command"
-                        cmd /c "net start $serviceName"
-                        Start-Sleep -Seconds 5
                         
-                        # Check result with SCUM log monitoring
-                        $startupResult = Monitor-SCUMServerStartup "admin start" 6 10
-                        if ($startupResult.Success) {
-                            Notify-ServerStatusChange "Online" "Admin start command" @{ PlayerCount = $startupResult.Status.PlayerCount }
-                            Notify-AdminActionResult "start" "completed successfully" "ONLINE"
+                        # Check if server is already running
+                        if (Check-ServiceRunning $serviceName) {
+                            Write-Log "[INFO] Server service is already running"
+                            Send-Notification admin "otherEvent" @{ event = "Admin $authorId tried to start server, but it's already running" }
                         } else {
-                            Notify-ServerStatusChange "Offline" "Admin start failed"
-                            Notify-AdminActionResult "start" "failed - $($startupResult.Reason)" "OFFLINE"
+                            cmd /c "net start $serviceName"
+                            Start-Sleep -Seconds 5
+                            
+                            # Check result with SCUM log monitoring
+                            $startupResult = Monitor-SCUMServerStartup "admin start" 6 10
+                            if ($startupResult.Success) {
+                                Notify-ServerStatusChange "Online" "Admin start command" @{ PlayerCount = $startupResult.Status.PlayerCount }
+                                Notify-AdminActionResult "start" "completed successfully" "ONLINE"
+                            } else {
+                                Notify-ServerStatusChange "Offline" "Admin start failed"
+                                Notify-AdminActionResult "start" "failed - $($startupResult.Reason)" "OFFLINE"
+                            }
                         }
                     } elseif ($content -like "${commandPrefix}server_update*") {
                         # Parse delay parameter for update command
@@ -1428,39 +1492,157 @@ if ($runUpdateOnStart -and -not $firstInstall) {
     }
 }
 
-# --- CONTINUOUS MONITORING LOOP ---
-while ($true) {
-    $now = Get-Date
-    $updateOrRestart = $false
+# --- MAIN MONITORING LOOP ---
+# Performance monitoring variables
+$global:LastPerformanceLogTime = $null
+$global:LastPerformanceStatus = ""
+$performanceLogInterval = if ($config.performanceLogIntervalMinutes) { $config.performanceLogIntervalMinutes } else { 5 }
+$fpsAlertThreshold = if ($config.fpsAlertThreshold) { $config.fpsAlertThreshold } else { 15 }
+$fpsWarningThreshold = if ($config.fpsWarningThreshold) { $config.fpsWarningThreshold } else { 20 }
+
+# --- SERVER PERFORMANCE MONITORING ---
+# Parse FPS and performance data from SCUM server log
+function Get-ServerPerformanceStats {
+    param(
+        [string]$logPath,
+        [int]$maxLines = 100
+    )
     
-    # Reduce log spam - debug info only every 10 minutes
-    if ($now.Second -eq 0 -and $now.Minute % 10 -eq 0) {
-        Write-Log ("[DEBUG] Next restart: {0}" -f $nextRestartTime.ToString('yyyy-MM-dd HH:mm'))
+    if (!(Test-Path $logPath)) {
+        return $null
     }
     
-    # --- DELAYED UPDATE PROCESSING ---
-    if ($null -ne $global:UpdateScheduledTime) {
-        # Send 5-minute warning if not sent yet and delay is >= 5 minutes
-        $warningMinutes = [Math]::Min(5, [Math]::Floor($updateDelayMinutes / 2))
-        if ($updateDelayMinutes -gt 5 -and -not $global:UpdateWarning5Sent -and $now -ge $global:UpdateScheduledTime.AddMinutes(-$warningMinutes) -and $now -lt $global:UpdateScheduledTime.AddMinutes(-$warningMinutes).AddSeconds(30)) {
-            Send-Notification player "updateWarning5" @{ warningMinutes = $warningMinutes }
-            Write-Log ("[INFO] Sent update {0}-minute warning at {1}" -f $warningMinutes, $now.ToString('HH:mm:ss'))
-            $global:UpdateWarning5Sent = $true
-        }
+    try {
+        $logLines = Get-Content $logPath -Tail $maxLines -ErrorAction Stop
         
-        # Execute update if time has come
-        if ($now -ge $global:UpdateScheduledTime) {
-            Write-Log ("[INFO] Delayed update time reached, executing update...")
-            if (Execute-ImmediateUpdate) {
-                $updateOrRestart = $true
-                Write-Log "[INFO] Delayed update completed successfully."
-            } else {
-                Write-Log "[ERROR] Delayed update failed!"
+        # Find the most recent Global Stats entry
+        for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
+            $line = $logLines[$i]
+            
+            if ($line -match 'LogSCUM: Global Stats:') {
+                # Extract timestamp
+                $timestamp = $null
+                if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
+                    try {
+                        $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
+                        $timestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                    } catch {
+                        $timestamp = Get-Date
+                    }
+                }
+                
+                # Parse FPS values
+                $fpsValues = @()
+                $frameTimeValues = @()
+                
+                [regex]::Matches($line, '(\d+\.?\d*)ms\s*\(\s*(\d+\.?\d*)FPS\)') | ForEach-Object {
+                    $frameTime = [double]$_.Groups[1].Value
+                    $fps = [double]$_.Groups[2].Value
+                    $frameTimeValues += $frameTime
+                    $fpsValues += $fps
+                }
+                
+                # Extract player count
+                $playerCount = 0
+                if ($line -match 'P:\s*(\d+)\s*\(\s*(\d+)\)') {
+                    $playerCount = [int]$matches[1]
+                }
+                
+                # Extract entity counts
+                $entities = @{
+                }
+                if ($line -match 'C:\s*(\d+)') { $entities['Characters'] = [int]$matches[1] }
+                if ($line -match 'P:\s*(\d+)') { $entities['Players'] = [int]$matches[1] }
+                if ($line -match 'Z:\s*(\d+)') { $entities['Zombies'] = [int]$matches[1] }
+                if ($line -match 'R:\s*(\d+)') { $entities['Replicated'] = [int]$matches[1] }
+                if ($line -match 'S:\s*(\d+)') { $entities['Static'] = [int]$matches[1] }
+                if ($line -match 'A:\s*(\d+)') { $entities['Actors'] = [int]$matches[1] }
+                if ($line -match 'V:\s*(\d+)') { $entities['Vehicles'] = [int]$matches[1] }
+                
+                # Calculate performance metrics
+                $avgFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Average).Average, 1) } else { 0 }
+                $minFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Minimum).Minimum, 1) } else { 0 }
+                $maxFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Maximum).Maximum, 1) } else { 0 }
+                $avgFrameTime = if ($frameTimeValues.Count -gt 0) { [Math]::Round(($frameTimeValues | Measure-Object -Average).Average, 1) } else { 0 }
+                
+                # Determine performance status
+                $performanceStatus = "Unknown"
+                if ($avgFPS -gt 0) {
+                    if ($avgFPS -ge 30) {
+                        $performanceStatus = "Excellent"
+                    } elseif ($avgFPS -ge 20) {
+                        $performanceStatus = "Good"
+                    } elseif ($avgFPS -ge 15) {
+                        $performanceStatus = "Fair"
+                    } elseif ($avgFPS -ge 10) {
+                        $performanceStatus = "Poor"
+                    } else {
+                        $performanceStatus = "Critical"
+                    }
+                }
+                
+                return @{
+                    Timestamp = $timestamp
+                    AverageFPS = $avgFPS
+                    MinFPS = $minFPS
+                    MaxFPS = $maxFPS
+                    AverageFrameTime = $avgFrameTime
+                    FPSValues = $fpsValues
+                    FrameTimeValues = $frameTimeValues
+                    PlayerCount = $playerCount
+                    Entities = $entities
+                    PerformanceStatus = $performanceStatus
+                    RawLine = $line
+                }
             }
         }
+        
+        return $null
+        
+    } catch {
+        Write-Log "[DEBUG] Error parsing performance stats: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# Get performance summary for notifications and monitoring
+function Get-PerformanceSummary {
+    param([hashtable]$perfStats)
+    
+    if ($null -eq $perfStats) {
+        return "Performance data not available"
     }
     
-    # --- ADMIN ACTION PROCESSING ---
+    $summary = "FPS: $($perfStats.AverageFPS) avg"
+    if ($perfStats.MinFPS -ne $perfStats.MaxFPS) {
+        $summary += " ($($perfStats.MinFPS)-$($perfStats.MaxFPS))"
+    }
+    $summary += ", Frame: $($perfStats.AverageFrameTime)ms"
+    $summary += ", Players: $($perfStats.PlayerCount)"
+    $summary += ", Status: $($perfStats.PerformanceStatus)"
+    
+    return $summary
+}
+# --- MAIN MONITORING LOOP ---
+Write-Log "[INFO] Starting main server monitoring loop..."
+
+# Performance monitoring variables
+$global:LastPerformanceLogTime = $null
+$global:LastPerformanceStatus = ""
+$performanceLogInterval = if ($config.performanceLogIntervalMinutes) { $config.performanceLogIntervalMinutes } else { 5 }
+$fpsAlertThreshold = if ($config.fpsAlertThreshold) { $config.fpsAlertThreshold } else { 15 }
+$fpsWarningThreshold = if ($config.fpsWarningThreshold) { $config.fpsWarningThreshold } else { 20 }
+
+# Main monitoring loop
+try {
+    while ($true) {
+        $currentTime = Get-Date
+        $now = Get-Date  # Define $now variable used throughout the loop
+        $updateOrRestart = $false  # Initialize flag for update/restart operations
+        
+        # Check if server is running
+        $serverRunning = Check-ServiceRunning $serviceName
+    
     # Admin Restart
     if ($null -ne $global:AdminRestartScheduledTime) {
         $restartDelay = ($global:AdminRestartScheduledTime - $now).TotalMinutes
@@ -1473,22 +1655,23 @@ while ($true) {
         }
         
         if ($now -ge $global:AdminRestartScheduledTime) {
-            Write-Log "[INFO] Admin restart time reached, executing restart..."
+            Write-Log "[INFO] Admin restart time reached, restarting server..."
             Send-Notification player "adminRestartNow" @{}
             
-            # Clear the intentionally stopped flag
+            # Clear the intentionally stopped flag (restart means we want server running)
             $global:ServerIntentionallyStopped = $false
+            
             # Backup and restart server
             Backup-Saved | Out-Null
             cmd /c "net stop $serviceName"
             Start-Sleep -Seconds 10
             cmd /c "net start $serviceName"
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 5
             
             # Check result with SCUM log monitoring
             $startupResult = Monitor-SCUMServerStartup "admin scheduled restart" 6 10
             if ($startupResult.Success) {
-                Notify-ServerStatusChange "Online" "Admin scheduled restart" @{ PlayerCount = $startupResult.Status.PlayerCount }
+                Notify-ServerStatusChange "Online" "Admin scheduled restart command" @{ PlayerCount = $startupResult.Status.PlayerCount }
                 Notify-AdminActionResult "scheduled restart" "completed successfully" "ONLINE"
             } else {
                 Notify-ServerStatusChange "Offline" "Admin scheduled restart failed"
@@ -1519,12 +1702,25 @@ while ($true) {
             
             # Set flag to prevent auto-restart
             $global:ServerIntentionallyStopped = $true
-            cmd /c "net stop $serviceName"
-            Start-Sleep -Seconds 5
             
-            # Always notify about server being stopped
-            Notify-ServerOffline "Admin scheduled stop"
-            Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
+            # Check if server is already stopped
+            if (-not (Check-ServiceRunning $serviceName)) {
+                Write-Log "[INFO] Server service is already stopped during scheduled stop"
+                Notify-AdminActionResult "scheduled stop" "already stopped" "OFFLINE"
+            } else {
+                cmd /c "net stop $serviceName"
+                Start-Sleep -Seconds 5
+                
+                # Verify stop was successful
+                if (-not (Check-ServiceRunning $serviceName)) {
+                    # Always notify about server being stopped
+                    Notify-ServerOffline "Admin scheduled stop"
+                    Notify-AdminActionResult "scheduled stop" "completed successfully" "OFFLINE"
+                } else {
+                    Write-Log "[ERROR] Failed to stop server service during scheduled stop"
+                    Notify-AdminActionResult "scheduled stop" "failed - service still running" "UNKNOWN"
+                }
+            }
             
             # Clear scheduling
             $global:AdminStopScheduledTime = $null
@@ -1790,60 +1986,104 @@ while ($true) {
             }
         }
     }
-    Start-Sleep -Seconds 1
-}
-
-# Helper function for server shutdown with configurable timeout
-function Stop-SCUMServerWithTimeout {
-    param([string]$reason = "manual stop")
-    
-    $shutdownTimeoutMinutes = if ($config.serverShutdownTimeoutMinutes) { $config.serverShutdownTimeoutMinutes } else { 5 }
-    
-    Write-Log "[INFO] Stopping SCUM server (timeout: $shutdownTimeoutMinutes minutes) - Reason: $reason"
-    
-    # Start the stop command
-    $stopProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "net stop $serviceName" -PassThru -NoNewWindow
-    
-    # Wait for completion with timeout
-    $stopCompleted = $stopProcess.WaitForExit($shutdownTimeoutMinutes * 60 * 1000)  # Convert to milliseconds
-    
-    if ($stopCompleted) {
-        Write-Log "[INFO] Server stopped successfully in $([Math]::Round((Get-Date - $stopProcess.StartTime).TotalSeconds, 1)) seconds"
-        return $true
-    } else {
-        Write-Log "[WARNING] Server stop timed out after $shutdownTimeoutMinutes minutes, forcing kill"
-        try {
-            $stopProcess.Kill()
-            # Force kill the service process if it's still running
-            $scumProcesses = Get-Process -Name "SCUMServer" -ErrorAction SilentlyContinue
-            if ($scumProcesses) {
-                $scumProcesses | ForEach-Object { 
-                    Write-Log "[WARNING] Force killing SCUM process PID: $($_.Id)"
-                    $_.Kill() 
+        
+        # --- PERFORMANCE MONITORING ---
+        # FPS and performance monitoring (if enabled and server is running)
+        if ($config.enablePerformanceMonitoring -and $serverRunning) {
+            $shouldLogPerformance = $false
+            
+            # Check if it's time to log performance
+            if ($null -eq $global:LastPerformanceLogTime) {
+                $shouldLogPerformance = $true
+            } else {
+                $timeSinceLastLog = ($currentTime - $global:LastPerformanceLogTime).TotalMinutes
+                if ($timeSinceLastLog -ge $performanceLogInterval) {
+                    $shouldLogPerformance = $true
                 }
             }
-            return $true
-        } catch {
-            Write-Log "[ERROR] Failed to force kill server: $_"
-            return $false
+            
+            if ($shouldLogPerformance) {
+                $logPath = Join-Path $serverDir "SCUM\Saved\Logs\SCUM.log"
+                $perfStats = Get-ServerPerformanceStats -logPath $logPath -maxLines 200
+                
+                if ($null -ne $perfStats -and $perfStats.AverageFPS -gt 0) {
+                    $perfSummary = Get-PerformanceSummary $perfStats
+                    Write-Log "[PERFORMANCE] $perfSummary"
+                    
+                    # Check for performance alerts
+                    $currentPerfStatus = $perfStats.PerformanceStatus
+                    
+                    # Only send notifications for status changes or critical/poor performance
+                    if ($currentPerfStatus -ne $global:LastPerformanceStatus) {
+                        Write-Log "[INFO] Server performance status changed: $($global:LastPerformanceStatus) → $currentPerfStatus"
+                        
+                        # Send notifications based on performance status
+                        switch ($currentPerfStatus) {
+                            "Critical" {
+                                Send-Notification admin "performanceCritical" @{ performanceSummary = $perfSummary }
+                                Write-Log "[ALERT] Critical performance detected! $perfSummary"
+                            }
+                            "Poor" {
+                                Send-Notification admin "performancePoor" @{ performanceSummary = $perfSummary }
+                                Write-Log "[WARNING] Poor performance detected! $perfSummary"
+                            }
+                            "Fair" {
+                                # Only send if previous status was good/excellent (degradation)
+                                if ($global:LastPerformanceStatus -in @("Good", "Excellent")) {
+                                    Send-Notification admin "performanceFair" @{ performanceSummary = $perfSummary }
+                                    Write-Log "[NOTICE] Performance degraded to fair: $perfSummary"
+                                }
+                            }
+                            "Good" {
+                                # Only send if recovering from poor/critical
+                                if ($global:LastPerformanceStatus -in @("Poor", "Critical")) {
+                                    Send-Notification admin "performanceGood" @{ performanceSummary = $perfSummary }
+                                    Write-Log "[INFO] Performance improved to good: $perfSummary"
+                                }
+                            }
+                            "Excellent" {
+                                # Only send if recovering from poor/critical/fair
+                                if ($global:LastPerformanceStatus -in @("Poor", "Critical", "Fair")) {
+                                    Send-Notification admin "performanceExcellent" @{ performanceSummary = $perfSummary }
+                                    Write-Log "[INFO] Performance improved to excellent: $perfSummary"
+                                }
+                            }
+                        }
+                        
+                        $global:LastPerformanceStatus = $currentPerfStatus
+                    }
+                    
+                    # Additional logging for very low FPS (regardless of status change)
+                    if ($perfStats.AverageFPS -le $fpsAlertThreshold) {
+                        Write-Log "[ALERT] Very low FPS detected: $($perfStats.AverageFPS) avg (threshold: $fpsAlertThreshold)"
+                    } elseif ($perfStats.AverageFPS -le $fpsWarningThreshold) {
+                        Write-Log "[WARNING] Low FPS detected: $($perfStats.AverageFPS) avg (threshold: $fpsWarningThreshold)"
+                    }
+                    
+                    $global:LastPerformanceLogTime = $currentTime
+                } else {
+                    # No performance data available
+                    if ($null -eq $global:LastPerformanceLogTime) {
+                        Write-Log "[DEBUG] No performance data available yet (server may still be starting)"
+                        $global:LastPerformanceLogTime = $currentTime
+                    }
+                }
+            }
         }
+        
+        # Sleep before next iteration
+        Start-Sleep -Seconds 1
     }
+} catch {
+    Write-Log "[ERROR] Critical error in main monitoring loop: $($_.Exception.Message)"
+    Write-Log "[ERROR] Stack trace: $($_.ScriptStackTrace)"
+    
+    # Try to continue after a brief pause
+    Start-Sleep -Seconds 30
+    
+    # Reset some variables to recover
+    $global:LastPerformanceLogTime = $null
+    $global:LastPerformanceStatus = ""
 }
 
-# Global cache for player count to avoid excessive log parsing
-$global:LastPlayerCountCheck = $null
-$global:CachedPlayerCount = 0
-
-function Get-CachedPlayerCount {
-    $checkInterval = if ($config.playerCountCheckIntervalMinutes) { $config.playerCountCheckIntervalMinutes } else { 5 }
-    
-    $now = Get-Date
-    if ($null -eq $global:LastPlayerCountCheck -or ($now - $global:LastPlayerCountCheck).TotalMinutes -ge $checkInterval) {
-        $status = Get-SCUMServerStatus
-        $global:CachedPlayerCount = $status.PlayerCount
-        $global:LastPlayerCountCheck = $now
-        Write-Log "[DEBUG] Player count updated: $($global:CachedPlayerCount)"
-    }
-    
-    return $global:CachedPlayerCount
-}
+Write-Log "[INFO] Main monitoring loop ended"
