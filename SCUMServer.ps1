@@ -784,7 +784,7 @@ function Update-Server {
             $startupResult = Monitor-SCUMServerStartup "first install" 8 15
             if ($startupResult.Success) {
                 Write-Log "[INFO] SCUM server is online after first install."
-                Notify-ServerStatusChange "Online" "First install completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
+                Notify-ServerOnline "First install completed"
                 Notify-AdminActionResult "first install" "completed successfully" "ONLINE"
             } else {
                 Write-Log "[ERROR] SCUM server failed to start after first install: $($startupResult.Reason)"
@@ -853,7 +853,7 @@ function Update-Server {
         if ($startupResult.Success) {
             Write-Log "[INFO] SCUM server is online after update."
             Send-Notification admin "updateSuccess" @{}
-            Notify-ServerStatusChange "Online" "Update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
+            Notify-ServerOnline "Update completed"
             Notify-AdminActionResult "update" "completed successfully" "ONLINE"
         } else {
             Write-Log "[ERROR] SCUM server failed to start after update: $($startupResult.Reason)"
@@ -873,6 +873,7 @@ function Update-Server {
 # Execute scheduled update with notifications
 function Execute-ImmediateUpdate {
     Write-Log "[INFO] Executing scheduled update now..."
+    Notify-UpdateInProgress "Scheduled update execution"
     Send-Notification player "updateStarting" @{}
     
     # Stop server service before update
@@ -892,7 +893,7 @@ function Execute-ImmediateUpdate {
         $startupResult = Monitor-SCUMServerStartup "delayed update" 8 15
         if ($startupResult.Success) {
             Write-Log "[INFO] SCUM server is online after update."
-            Notify-ServerStatusChange "Online" "Delayed update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
+            Notify-ServerOnline "Delayed update completed"
             Send-Notification admin "updateSuccess" @{}
             Send-Notification player "updateCompleted" @{}
             # Clear intentionally stopped flag after successful update
@@ -1048,6 +1049,7 @@ function Poll-AdminCommands {
                             # Clear the intentionally stopped flag (restart means we want server running)
                             $global:ServerIntentionallyStopped = $false
                             # Backup and restart server
+                            Notify-ServerRestarting "Admin immediate restart"
                             Backup-Saved | Out-Null
                             cmd /c "net stop $serviceName"
                             Start-Sleep -Seconds 10
@@ -1060,7 +1062,7 @@ function Poll-AdminCommands {
                                 Notify-ServerStatusChange "Online" "Admin restart command" @{ PlayerCount = $startupResult.Status.PlayerCount }
                                 Notify-AdminActionResult "restart" "completed successfully" "ONLINE"
                             } else {
-                                Notify-ServerStatusChange "Offline" "Admin restart failed"
+                                Notify-ServerOffline "Admin restart failed"
                                 Notify-AdminActionResult "restart" "failed - $($startupResult.Reason)" "OFFLINE"
                             }
                         }
@@ -1107,7 +1109,7 @@ function Poll-AdminCommands {
                                     Notify-AdminActionResult "stop" "failed - service still running" "UNKNOWN"
                                 }
                             }
-                            Notify-ServerStatusChange "Offline" "Admin stop command"
+                            Notify-ServerOffline "Admin stop command"
                             Notify-AdminActionResult "stop" "completed successfully" "OFFLINE"
                         }
                     } elseif ($content -like "${commandPrefix}server_start*") {
