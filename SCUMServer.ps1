@@ -852,6 +852,7 @@ function Update-Server {
         $startupResult = Monitor-SCUMServerStartup "update" 8 15
         if ($startupResult.Success) {
             Write-Log "[INFO] SCUM server is online after update."
+            Send-Notification admin "updateSuccess" @{}
             Notify-ServerStatusChange "Online" "Update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
             Notify-AdminActionResult "update" "completed successfully" "ONLINE"
         } else {
@@ -892,6 +893,7 @@ function Execute-ImmediateUpdate {
         if ($startupResult.Success) {
             Write-Log "[INFO] SCUM server is online after update."
             Notify-ServerStatusChange "Online" "Delayed update completed" @{ PlayerCount = $startupResult.Status.PlayerCount }
+            Send-Notification admin "updateSuccess" @{}
             Send-Notification player "updateCompleted" @{}
             # Clear intentionally stopped flag after successful update
             $global:ServerIntentionallyStopped = $false
@@ -1674,6 +1676,7 @@ try {
         
         if ($now -ge $global:AdminRestartScheduledTime) {
             Write-Log "[INFO] Admin restart time reached, restarting server..."
+            Send-Notification admin "adminRestart" @{ admin = "System"; delay = " (scheduled)" }
             Send-Notification player "adminRestartNow" @{}
             
             # Clear the intentionally stopped flag (restart means we want server running)
