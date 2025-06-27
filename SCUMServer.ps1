@@ -38,6 +38,16 @@ $botToken = $config.botToken
 # Get command prefix from config (default to "!" if not set)
 $commandPrefix = if ($adminCommandChannel.commandPrefix) { $adminCommandChannel.commandPrefix } else { "!" }
 
+# --- PERFORMANCE THRESHOLDS ---
+# Load performance thresholds from config with defaults
+$performanceThresholds = @{
+    excellent = if ($config.performanceThresholds.excellent) { $config.performanceThresholds.excellent } else { 30 }
+    good = if ($config.performanceThresholds.good) { $config.performanceThresholds.good } else { 20 }
+    fair = if ($config.performanceThresholds.fair) { $config.performanceThresholds.fair } else { 15 }
+    poor = if ($config.performanceThresholds.poor) { $config.performanceThresholds.poor } else { 10 }
+    critical = if ($null -ne $config.performanceThresholds.critical) { $config.performanceThresholds.critical } else { 0 }
+}
+
 # Send Discord notifications with role mentions and template variables
 function Send-Notification {
     param(
@@ -1255,6 +1265,7 @@ function Poll-AdminCommands {
 • Auto-restart Attempts: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)
 • Minutes Since Last Attempt: $timeSinceLastAttempt
 • Cooldown Period: $($global:AutoRestartCooldownMinutes) minutes
+• Performance Thresholds: Excellent >=$($performanceThresholds.excellent)fps, Good >=$($performanceThresholds.good)fps, Fair >=$($performanceThresholds.fair)fps, Poor >=$($performanceThresholds.poor)fps
 "@
                         Send-Notification admin "otherEvent" @{ event = $statusReport }
                     }
@@ -1361,6 +1372,7 @@ Write-Log ("[INFO] Restart times configured: {0}" -f ($restartTimes -join ', '))
 Write-Log ("[INFO] Admin command prefix: '{0}'" -f $commandPrefix)
 $periodicBackupStatus = if ($periodicBackupEnabled) { "ENABLED (every $backupIntervalMinutes minutes)" } else { "DISABLED" }
 Write-Log ("[INFO] Periodic backup: {0}" -f $periodicBackupStatus)
+Write-Log ("[INFO] Performance thresholds: Excellent >={0}fps, Good >={1}fps, Fair >={2}fps, Poor >={3}fps, Critical <{3}fps" -f $performanceThresholds.excellent, $performanceThresholds.good, $performanceThresholds.fair, $performanceThresholds.poor)
 
 # Initialize Discord message baseline to only process new messages
 Initialize-MessageBaseline
@@ -1500,7 +1512,26 @@ $performanceLogInterval = if ($config.performanceLogIntervalMinutes) { $config.p
 $fpsAlertThreshold = if ($config.fpsAlertThreshold) { $config.fpsAlertThreshold } else { 15 }
 $fpsWarningThreshold = if ($config.fpsWarningThreshold) { $config.fpsWarningThreshold } else { 20 }
 
-# --- SERVER PERFORMANCE MONITORING ---
+# --- PERFORMANCE HELPER FUNCTIONS ---
+# Determine performance status based on configurable thresholds
+function Get-PerformanceStatus {
+    param([double]$fps)
+    
+    if ($fps -le 0) { return "Unknown" }
+    
+    if ($fps -ge $performanceThresholds.excellent) {
+        return "Excellent"
+    } elseif ($fps -ge $performanceThresholds.good) {
+        return "Good"
+    } elseif ($fps -ge $performanceThresholds.fair) {
+        return "Fair"
+    } elseif ($fps -ge $performanceThresholds.poor) {
+        return "Poor"
+    } else {
+        return "Critical"
+    }
+}
+
 # Parse FPS and performance data from SCUM server log
 function Get-ServerPerformanceStats {
     param(
@@ -1565,21 +1596,8 @@ function Get-ServerPerformanceStats {
                 $maxFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Maximum).Maximum, 1) } else { 0 }
                 $avgFrameTime = if ($frameTimeValues.Count -gt 0) { [Math]::Round(($frameTimeValues | Measure-Object -Average).Average, 1) } else { 0 }
                 
-                # Determine performance status
-                $performanceStatus = "Unknown"
-                if ($avgFPS -gt 0) {
-                    if ($avgFPS -ge 30) {
-                        $performanceStatus = "Excellent"
-                    } elseif ($avgFPS -ge 20) {
-                        $performanceStatus = "Good"
-                    } elseif ($avgFPS -ge 15) {
-                        $performanceStatus = "Fair"
-                    } elseif ($avgFPS -ge 10) {
-                        $performanceStatus = "Poor"
-                    } else {
-                        $performanceStatus = "Critical"
-                    }
-                }
+                # Determine performance status using configurable thresholds
+                $performanceStatus = Get-PerformanceStatus $avgFPS
                 
                 return @{
                     Timestamp = $timestamp
@@ -1714,7 +1732,7 @@ try {
                 # Verify stop was successful
                 if (-not (Check-ServiceRunning $serviceName)) {
                     # Always notify about server being stopped
-                    Notify-ServerOffline "Admin scheduled stop"
+                    Notify-ServerStatusChange "Offline" "Admin stop command"
                     Notify-AdminActionResult "scheduled stop" "completed successfully" "OFFLINE"
                 } else {
                     Write-Log "[ERROR] Failed to stop server service during scheduled stop"
@@ -2015,7 +2033,7 @@ try {
                     
                     # Only send notifications for status changes or critical/poor performance
                     if ($currentPerfStatus -ne $global:LastPerformanceStatus) {
-                        Write-Log "[INFO] Server performance status changed: $($global:LastPerformanceStatus) → $currentPerfStatus"
+                        Write-Log "[INFO] Server performance status changed: $($global:LastPerformanceStatus) -> $currentPerfStatus"
                         
                         # Send notifications based on performance status
                         switch ($currentPerfStatus) {
