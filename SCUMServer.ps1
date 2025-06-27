@@ -433,7 +433,9 @@ function Get-ServerPerformanceStats {
                 if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
                     try {
                         $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
-                        $timestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                        $utcTimestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                        # SCUM logs in UTC, convert to local time
+                        $timestamp = $utcTimestamp.AddHours([System.TimeZoneInfo]::Local.GetUtcOffset((Get-Date)).TotalHours)
                     } catch {
                         $timestamp = Get-Date
                     }
@@ -562,26 +564,24 @@ function Get-SCUMServerStatus {
         $crashDetected = $false
         $hangDetected = $false
         
-        # Get performance statistics
+        # Get performance statistics first (but don't rely on them for online status)
         $performanceStats = Get-ServerPerformanceStats -logPath $scumLogPath -maxLines 200
         
-        # If we have performance stats, server is definitely online
-        if ($null -ne $performanceStats) {
-            $serverPhase = "Online"
-            $isOnline = $true
-            $playerCount = $performanceStats.PlayerCount
-        }
+        # Process lines backwards (newest first) to determine server state
+        $matchStateInProgress = $false
+        $hasRecentGlobalStats = $false
         
-        # Process lines backwards (newest first)
         for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
             $line = $logLines[$i]
             
-            # Extract timestamp
+            # Extract timestamp with proper timezone conversion
             if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
                 if ($null -eq $lastTimestamp) {
                     try {
                         $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
-                        $lastTimestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                        $utcTimestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                        # SCUM logs are in UTC, convert to local time for accurate comparison
+                        $lastTimestamp = $utcTimestamp.AddHours([System.TimeZoneInfo]::Local.GetUtcOffset((Get-Date)).TotalHours)
                     } catch {
                         # If parsing fails, use approximation
                         $lastTimestamp = (Get-Date).AddMinutes(-1)
@@ -589,58 +589,65 @@ function Get-SCUMServerStatus {
                 }
             }
             
-            # Detect key states (newest pattern wins)
+            # CRITICAL: Only consider server truly online if we find "Match State Changed to InProgress"
             if ($line -match 'Match State Changed to InProgress') {
+                $matchStateInProgress = $true
                 $serverPhase = "Online"
                 $isOnline = $true
-                break
-            } elseif ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
-                # Server is running and generating statistics - this means it's online
-                $serverPhase = "Online"
-                $isOnline = $true
-                if ($matches.Count -ge 2) {
-                    $playerCount = [int]$matches[1]
+                break  # This is the definitive indicator
+            } 
+            
+            # Check for recent Global Stats (within last 3 minutes) as secondary indicator
+            if ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
+                if ($lastTimestamp -and ((Get-Date) - $lastTimestamp).TotalMinutes -le 3) {
+                    $hasRecentGlobalStats = $true
+                    if ($matches.Count -ge 2) {
+                        $playerCount = [int]$matches[1]
+                    }
                 }
-                # Don't break - continue looking for newer records
-            } elseif ($line -match 'Match State Changed to') {
-                $serverPhase = "Loading"
-                # Don't break - Global Stats has higher priority
-            } elseif ($line -match 'LogWorld:.*Bringing World.*online') {
-                $serverPhase = "Loading"
-                # Don't break - Global Stats has higher priority  
-            } elseif ($line -match 'LogGameState:.*Match State.*WaitingToStart') {
-                $serverPhase = "Loading"
-                # Don't break - Global Stats has higher priority
-            } elseif ($line -match 'LogWorld:.*World.*initialized') {
-                $serverPhase = "Loading"
-                # Don't break - Global Stats has higher priority
-            } elseif ($line -match 'LogInit:.*Engine is initialized') {
-                $serverPhase = "Starting"
-                # Don't break - Global Stats has higher priority
-            } elseif ($line -match 'LogSCUMServer:.*Server.*starting') {
-                $serverPhase = "Starting"
-                # Don't break - Global Stats has higher priority
-            } elseif ($line -match 'BeginPlay.*World') {
-                $serverPhase = "Starting"
-                # Don't break - Global Stats has higher priority
+            }
+            
+            # Detect other states only if we haven't found InProgress
+            if (!$matchStateInProgress) {
+                if ($line -match 'Match State Changed to') {
+                    $serverPhase = "Loading"
+                } elseif ($line -match 'LogWorld:.*Bringing World.*online') {
+                    $serverPhase = "Loading"
+                } elseif ($line -match 'LogGameState:.*Match State.*WaitingToStart') {
+                    $serverPhase = "Loading"
+                } elseif ($line -match 'LogWorld:.*World.*initialized') {
+                    $serverPhase = "Loading"
+                } elseif ($line -match 'LogInit:.*Engine is initialized') {
+                    $serverPhase = "Starting"
+                } elseif ($line -match 'LogSCUMServer:.*Server.*starting') {
+                    $serverPhase = "Starting"
+                } elseif ($line -match 'BeginPlay.*World') {
+                    $serverPhase = "Starting"
+                }
             }
             
             # Detect crash/error patterns - but not common SCUM warnings and errors
             # Only consider it a crash if we have recent activity and real fatal errors
-            if ($line -match '(Fatal|Critical|Crash|Exception)' -and 
-                $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time|LogStats|LogCore.*packagename|LogUObjectGlobals|LogAssetRegistry') {
+            if ($line -match '(Fatal|Critical|Exception)' -and 
+                $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time|LogStats|LogCore.*packagename|LogUObjectGlobals|LogAssetRegistry|LogConfig|GPUCrashDebugging|r\.GPUCrashDebugging|CVar.*Crash') {
                 # Only mark as crashed if this is a recent error (not just startup noise)
                 if ($lastTimestamp -and ((Get-Date) - $lastTimestamp).TotalMinutes -lt 5) {
                     $crashDetected = $true
+                    Write-Log "[DEBUG] Crash pattern detected in recent log: $($line.Substring(0, [Math]::Min(100, $line.Length)))"
                 }
             }
             
-            # Extract player count (from Global Stats)
+            # Extract player count (from Global Stats or performance stats)
             if ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
                 $playerCount = [int]$matches[1]
             } elseif ($line -match 'Players.*?(\d+)') {
                 $playerCount = [int]$matches[1]
             }
+        }
+        
+        # If we have performance stats and player count from them, use that
+        if ($null -ne $performanceStats -and $performanceStats.PlayerCount -ge 0) {
+            $playerCount = $performanceStats.PlayerCount
         }
         
         # Detect hang (no activity in last 30 minutes during expected online state)
@@ -652,44 +659,62 @@ function Get-SCUMServerStatus {
             }
         }
         
-        # Determine final state
+        # Determine final state with strict no-regression logic
+        $serviceRunning = Check-ServiceRunning $serviceName
         $finalStatus = "Unknown"
-        if ($crashDetected -and $lastTimestamp) {  # Only mark as crashed if we have logs and detected crash
+        
+        if ($crashDetected -and $lastTimestamp) {
+            # Only mark as crashed if we have logs and detected crash
             $finalStatus = "Crashed"
             $isOnline = $false
         } elseif ($hangDetected) {
             $finalStatus = "Hanging"
             $isOnline = $false
-        } elseif ($serverPhase -eq "Online") {
+        } elseif (!$serviceRunning) {
+            # Service not running - clearly offline
+            $finalStatus = "Offline"
+            $isOnline = $false
+        } elseif ($matchStateInProgress) {
+            # Definitive online state - found "Match State Changed to InProgress"
             $finalStatus = "Online"
             $isOnline = $true
-        } elseif ($serverPhase -eq "Loading") {
-            $finalStatus = "Loading"
-            $isOnline = $false
-        } elseif ($serverPhase -eq "Starting") {
-            $finalStatus = "Starting"
-            $isOnline = $false
-        } else {
-            # If state is unclear, check Windows service
-            if (Check-ServiceRunning $serviceName) {
-                # If service is running but log is old, probably server is running but not writing logs
-                if ($timeSinceLastActivity -le 180) { # 3 hours tolerance
-                    # If we have very recent service start but no clear logs yet, assume starting
-                    if ($timeSinceLastActivity -le 10) {
-                        $finalStatus = "Starting"
-                        $isOnline = $false
-                    } else {
-                        $finalStatus = "Online"
-                        $isOnline = $true
-                    }
-                } else {
-                    $finalStatus = "Starting"
-                    $isOnline = $false
-                }
+        } elseif ($hasRecentGlobalStats) {
+            # Recent Global Stats found - server is online or very close to online
+            if ($timeSinceLastActivity -le 10) {
+                $finalStatus = "Online"
+                $isOnline = $true
+                Write-Log "[DEBUG] Server marked as Online based on recent Global Stats (last activity: $([Math]::Round($timeSinceLastActivity, 1)) min ago)"
             } else {
-                $finalStatus = "Offline"
+                # Recent stats but older general activity - still loading
+                $finalStatus = "Loading"
                 $isOnline = $false
+                Write-Log "[DEBUG] Server in Loading state with recent Global Stats but older activity"
             }
+        } elseif ($serverPhase -in @("Loading", "Starting")) {
+            # We detected a specific loading/starting phase - maintain it
+            $finalStatus = $serverPhase
+            $isOnline = $false
+        } elseif ($serviceRunning) {
+            # Service is running but no clear indicators
+            if ($timeSinceLastActivity -le 5) {
+                # Very recent activity - probably starting
+                $finalStatus = "Starting"
+                $isOnline = $false
+            } elseif ($timeSinceLastActivity -le 15) {
+                # Moderately recent activity - probably loading
+                $finalStatus = "Loading"
+                $isOnline = $false
+            } else {
+                # Older activity but service still running - keep as Loading rather than Unknown
+                # This prevents regression from Loading to Unknown
+                $finalStatus = "Loading"
+                $isOnline = $false
+                Write-Log "[DEBUG] Service running with old logs - maintaining Loading state instead of Unknown"
+            }
+        } else {
+            # Service not running - offline
+            $finalStatus = "Offline"
+            $isOnline = $false
         }
         
         return @{
