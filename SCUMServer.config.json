@@ -17,167 +17,167 @@
     "messages": {
       "_comment_server_states": "=== Core Server State Notifications ===",
       "serverOnline": { 
-        "title": "[ONLINE] Server Online", 
-        "text": "**Status:** ONLINE | **Players:** {playerCount} | **Reason:** {reason} | **Performance:** Available in status command", 
+        "title": "Server Online", 
+        "text": "**Reason:** {reason} | **Performance:** Available in status command", 
         "color": 3066993, 
         "enabled": true 
       },
       "serverOffline": { 
-        "title": "[OFFLINE] Server Offline", 
-        "text": "**Status:** OFFLINE | **Reason:** {reason} | **Service:** Checking status | **Action:** Investigating", 
+        "title": "Server Offline", 
+        "text": "**Reason:** {reason} | **Service:** Checking status | **Action:** Investigating", 
         "color": 15105570, 
         "enabled": true 
       },
       "serverStarting": { 
-        "title": "[STARTING] Server Starting", 
-        "text": "**Status:** STARTING | **Phase:** Initialization | **Reason:** {reason} | **Progress:** Launching service", 
+        "title": "Server Starting", 
+        "text": "**Phase:** Initialization | **Reason:** {reason} | **Progress:** Launching service", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverLoading": { 
-        "title": "[LOADING] Server Loading", 
-        "text": "**Status:** LOADING | **Phase:** World Loading | **Reason:** {reason} | **Progress:** Loading game world", 
+        "title": "Server Loading", 
+        "text": "**Phase:** World Loading | **Reason:** {reason} | **Progress:** Loading game world", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverRestarting": { 
-        "title": "[RESTART] Server Restarting", 
-        "text": "**Status:** RESTARTING | **Action:** Service Restart | **Reason:** {reason} | **ETA:** 1-2 minutes", 
+        "title": "Server Restarting", 
+        "text": "**Action:** Service Restart | **Reason:** {reason} | **ETA:** 1-2 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverCrashed": { 
-        "title": "[CRASH] Server Crashed", 
-        "text": "**Status:** CRASHED | **Issue:** Unexpected termination | **Reason:** {reason} | **Action:** Auto-restart initiated", 
+        "title": "Server Crashed", 
+        "text": "**Issue:** Unexpected termination | **Reason:** {reason} | **Action:** Auto-restart initiated", 
         "color": 15158332, 
         "enabled": true 
       },
       "serverHanging": { 
-        "title": "[HANG] Server Hanging", 
-        "text": "**Status:** HANGING | **Issue:** No activity detected | **Reason:** {reason} | **Action:** Restart required", 
+        "title": "Server Hanging", 
+        "text": "**Issue:** No activity detected | **Reason:** {reason} | **Action:** Restart required", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_performance": "=== Performance Monitoring ===",
       "performanceExcellent": { 
-        "title": "[PERFORMANCE] Excellent", 
-        "text": "**Performance:** EXCELLENT | **Details:** {performanceSummary} | **Status:** Optimal operation", 
+        "title": "Performance Excellent", 
+        "text": "**Details:** {performanceSummary} | **Status:** Optimal operation", 
         "color": 3066993, 
         "enabled": false 
       },
       "performanceGood": { 
-        "title": "[PERFORMANCE] Good", 
-        "text": "**Performance:** GOOD | **Details:** {performanceSummary} | **Status:** Stable operation", 
+        "title": "Performance Good", 
+        "text": "**Details:** {performanceSummary} | **Status:** Stable operation", 
         "color": 7844437, 
         "enabled": false 
       },
       "performanceFair": { 
-        "title": "[PERFORMANCE] Fair", 
-        "text": "**Performance:** FAIR | **Details:** {performanceSummary} | **Status:** Monitoring recommended", 
+        "title": "Performance Fair", 
+        "text": "**Details:** {performanceSummary} | **Status:** Monitoring recommended", 
         "color": 15844367, 
         "enabled": true 
       },
       "performancePoor": { 
-        "title": "[PERFORMANCE] Poor", 
-        "text": "**Performance:** POOR | **Details:** {performanceSummary} | **Status:** Investigation needed", 
+        "title": "Performance Poor", 
+        "text": "**Details:** {performanceSummary} | **Status:** Investigation needed", 
         "color": 15105570, 
         "enabled": true 
       },
       "performanceCritical": { 
-        "title": "[PERFORMANCE] Critical", 
-        "text": "**Performance:** CRITICAL | **Details:** {performanceSummary} | **Status:** Immediate attention required", 
+        "title": "Performance Critical", 
+        "text": "**Details:** {performanceSummary} | **Status:** Immediate attention required", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_system": "=== System & Manager Events ===",
       "managerStarted": { 
-        "title": "[SYSTEM] Manager Started", 
-        "text": "**Status:** ACTIVE | **Service:** SCUM Server Manager | **Action:** Monitoring initialized | **Features:** Auto-restart, updates, backups enabled", 
+        "title": "Manager Started", 
+        "text": "**Service:** SCUM Server Manager | **Action:** Monitoring initialized | **Features:** Auto-restart, updates, backups enabled", 
         "color": 3447003, 
         "enabled": true 
       },
 
       "_comment_updates": "=== Update System ===",
       "updateAvailable": { 
-        "title": "[UPDATE] Update Available", 
-        "text": "**Update:** AVAILABLE | **Installed:** Build {installed} | **Latest:** Build {latest} | **Action:** Scheduled for installation", 
+        "title": "Update Available", 
+        "text": "**Installed:** Build {installed} | **Latest:** Build {latest} | **Action:** Scheduled for installation", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateInProgress": { 
-        "title": "[UPDATE] Update In Progress", 
-        "text": "**Update:** IN PROGRESS | **Action:** Installing server files | **Reason:** {reason} | **ETA:** 3-6 minutes", 
+        "title": "Update In Progress", 
+        "text": "**Action:** Installing server files | **Reason:** {reason} | **ETA:** 3-6 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateSuccess": { 
-        "title": "[UPDATE] Update Successful", 
-        "text": "**Update:** COMPLETED | **Status:** Server files updated | **Action:** Service restarting | **Result:** Success", 
+        "title": "Update Successful", 
+        "text": "**Server files updated** | **Action:** Service restarting | **Result:** Success", 
         "color": 3066993, 
         "enabled": true 
       },
       "updateError": { 
-        "title": "[UPDATE] Update Error", 
-        "text": "**Update:** FAILED | **Error:** {error} | **Status:** Server may be offline | **Action:** Manual intervention required", 
+        "title": "Update Error", 
+        "text": "**Error:** {error} | **Server may be offline** | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
       "updateWarning": { 
-        "title": "[UPDATE] Update Warning", 
-        "text": "**Update:** WARNING | **Issue:** {warning} | **Action:** Will retry on next check", 
+        "title": "Update Warning", 
+        "text": "**Issue:** {warning} | **Action:** Will retry on next check", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateFailed": { 
-        "title": "[UPDATE] Update Failed", 
-        "text": "**Update:** FAILED | **Exit Code:** {exitCode} | **Status:** SteamCMD error | **Action:** Check server logs", 
+        "title": "Update Failed", 
+        "text": "**Exit Code:** {exitCode} | **SteamCMD error** | **Action:** Check server logs", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_backup": "=== Backup System ===",
       "backupCreated": { 
-        "title": "[BACKUP] Backup Created", 
-        "text": "**Backup:** COMPLETED | **File:** {path} | **Status:** Compressed and stored | **Action:** Auto-cleanup applied", 
+        "title": "Backup Created", 
+        "text": "**File:** {path} | **Compressed and stored** | **Action:** Auto-cleanup applied", 
         "color": 3447003, 
         "enabled": true 
       },
       "backupError": { 
-        "title": "[BACKUP] Backup Error", 
-        "text": "**Backup:** FAILED | **Status:** Unable to create backup | **Action:** Check filesystem permissions", 
+        "title": "Backup Error", 
+        "text": "**Unable to create backup** | **Action:** Check filesystem permissions", 
         "color": 15158332, 
         "enabled": true 
       },
       "backupWarning": { 
-        "title": "[BACKUP] Backup Warning", 
-        "text": "**Backup:** SKIPPED | **Issue:** Saved folder not found | **Action:** Backup will retry when folder exists", 
+        "title": "Backup Warning", 
+        "text": "**Issue:** Saved folder not found | **Action:** Backup will retry when folder exists", 
         "color": 15844367, 
         "enabled": true 
       },
 
       "_comment_install": "=== Installation & Setup ===",
       "firstInstall": { 
-        "title": "[INSTALL] First Install", 
+        "title": "First Install", 
         "text": "**Install:** STARTING | **Status:** Server files missing | **Action:** Downloading via SteamCMD | **ETA:** 8-15 minutes", 
         "color": 3447003, 
         "enabled": true 
       },
       "firstInstallComplete": { 
-        "title": "[INSTALL] First Install Complete", 
+        "title": "First Install Complete", 
         "text": "**Install:** COMPLETED | **Status:** Server files installed | **Service:** Started | **Action:** Ready for players", 
         "color": 3066993, 
         "enabled": true 
       },
       "installError": { 
-        "title": "[INSTALL] Install Error", 
+        "title": "Install Error", 
         "text": "**Install:** FAILED | **Issue:** Service failed to start | **Action:** Check installation logs", 
         "color": 15158332, 
         "enabled": true 
       },
       "installFailed": { 
-        "title": "[INSTALL] Install Failed", 
+        "title": "Install Failed", 
         "text": "**Install:** FAILED | **Exit Code:** {exitCode} | **Status:** SteamCMD error | **Action:** Verify network connection", 
         "color": 15158332, 
         "enabled": true 
@@ -185,19 +185,19 @@
 
       "_comment_scheduled": "=== Scheduled Operations ===",
       "scheduledRestart": { 
-        "title": "[SCHEDULE] Scheduled Restart", 
+        "title": "Scheduled Restart", 
         "text": "**Restart:** SCHEDULED | **Time:** As configured | **Action:** Backing up and restarting | **ETA:** 1-2 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "restartError": { 
-        "title": "[RESTART] Restart Error", 
+        "title": "Restart Error", 
         "text": "**Restart:** FAILED | **Issue:** Service failed to start | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
       "autoRestartError": { 
-        "title": "[AUTO-RESTART] Auto-Restart Error", 
+        "title": "Auto-Restart Error", 
         "text": "**Auto-Restart:** FAILED | **Attempts:** {attempts} | **Error:** {error} | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
@@ -205,31 +205,31 @@
 
       "_comment_admin": "=== Admin Commands ===",
       "adminRestart": { 
-        "title": "[ADMIN] Admin Restart", 
+        "title": "Admin Restart", 
         "text": "**Action:** RESTART | **Admin:** {admin} | **Schedule:** {delay} | **Status:** Command executed", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminStop": { 
-        "title": "[ADMIN] Admin Stop", 
+        "title": "Admin Stop", 
         "text": "**Action:** STOP | **Admin:** {admin} | **Status:** Server stopped | **Auto-restart:** Disabled", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStart": { 
-        "title": "[ADMIN] Admin Start", 
+        "title": "Admin Start", 
         "text": "**Action:** START | **Admin:** {admin} | **Status:** Server starting | **ETA:** 1-2 minutes", 
         "color": 3066993, 
         "enabled": true 
       },
       "adminBackup": { 
-        "title": "[ADMIN] Admin Backup", 
+        "title": "Admin Backup", 
         "text": "**Action:** BACKUP | **Admin:** {admin} | **Status:** Manual backup initiated | **Target:** Current save data", 
         "color": 3447003, 
         "enabled": true 
       },
       "adminUpdate": { 
-        "title": "[ADMIN] Admin Update", 
+        "title": "Admin Update", 
         "text": "**Action:** UPDATE | **Admin:** {admin} | **Schedule:** {delay} | **Status:** Update command executed", 
         "color": 15844367, 
         "enabled": true 
@@ -237,7 +237,7 @@
 
       "_comment_generic": "=== Generic Events ===",
       "otherEvent": { 
-        "title": "[ADMIN] Admin Event", 
+        "title": "Admin Event", 
         "text": "**Event:** {event}", 
         "color": 10181046, 
         "enabled": true 
@@ -253,163 +253,163 @@
     "messages": {
       "_comment_server_states": "=== Server State Changes (Player-Friendly) ===",
       "serverOnline": { 
-        "title": "[ONLINE] Server is Online", 
-        "text": "**Server Status:** ONLINE | **Players:** {playerCount} currently playing | **Status:** Ready to join!", 
+        "title": "Server is Online", 
+        "text": "**Server Status:** ONLINE | **Status:** Ready to join!", 
         "color": 3066993, 
         "enabled": true 
       },
       "serverOffline": { 
-        "title": "[OFFLINE] Server is Offline", 
-        "text": "**Server Status:** OFFLINE | **Info:** Server is currently down | **Action:** Please wait for updates", 
+        "title": "Server is Offline", 
+        "text": "**Server is currently down** | **Action:** Please wait for updates", 
         "color": 15105570, 
         "enabled": true 
       },
       "serverStarting": { 
-        "title": "[STARTING] Server is Starting", 
-        "text": "**Server Status:** STARTING | **Progress:** Launching server | **ETA:** Please wait 1-2 minutes", 
+        "title": "Server is Starting", 
+        "text": "**Progress:** Launching server | **ETA:** Please wait 1-2 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverLoading": { 
-        "title": "[LOADING] Server is Loading", 
-        "text": "**Server Status:** LOADING | **Progress:** Loading game world | **ETA:** Almost ready to join!", 
+        "title": "Server is Loading", 
+        "text": "**Progress:** Loading game world | **ETA:** Almost ready to join!", 
         "color": 15844367, 
         "enabled": false 
       },
       "serverRestarting": { 
-        "title": "[RESTART] Server is Restarting", 
-        "text": "**Server Status:** RESTARTING | **Info:** Server will be back online shortly | **ETA:** 1-2 minutes", 
+        "title": "Server is Restarting", 
+        "text": "**Info:** Server will be back online shortly | **ETA:** 1-2 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverCrashed": { 
-        "title": "[ISSUE] Server Issue Detected", 
-        "text": "**Server Status:** ISSUE DETECTED | **Action:** Server is being automatically restarted | **ETA:** 2-3 minutes", 
+        "title": "Server Issue Detected", 
+        "text": "**Action:** Server is being automatically restarted | **ETA:** 2-3 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "serverHanging": { 
-        "title": "[ISSUE] Server Issue Detected", 
-        "text": "**Server Status:** PERFORMANCE ISSUE | **Action:** Server restart may be required | **Info:** Please wait for updates", 
+        "title": "Server Issue Detected", 
+        "text": "**Performance issue detected** | **Action:** Server restart may be required | **Info:** Please wait for updates", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_scheduled": "=== Scheduled Restart Warnings ===",
       "restartWarning15": { 
-        "title": "[SCHEDULE] Scheduled Restart in 15 Minutes", 
-        "text": "**Restart Warning:** SERVER RESTART IN 15 MINUTES | **Action:** Please finish current activities | **Reason:** Scheduled maintenance", 
+        "title": "Scheduled Restart in 15 Minutes", 
+        "text": "**SERVER RESTART IN 15 MINUTES** | **Action:** Please finish current activities | **Reason:** Scheduled maintenance", 
         "color": 15844367, 
         "enabled": true 
       },
       "restartWarning5": { 
-        "title": "[SCHEDULE] Scheduled Restart in 5 Minutes", 
-        "text": "**Restart Warning:** SERVER RESTART IN 5 MINUTES | **Action:** Please save progress and prepare to disconnect | **Reason:** Scheduled maintenance", 
+        "title": "Scheduled Restart in 5 Minutes", 
+        "text": "**SERVER RESTART IN 5 MINUTES** | **Action:** Please save progress and prepare to disconnect | **Reason:** Scheduled maintenance", 
         "color": 15844367, 
         "enabled": true 
       },
       "restartWarning1": { 
-        "title": "[WARNING] Scheduled Restart in 1 Minute", 
-        "text": "**Final Warning:** SERVER RESTART IN 60 SECONDS | **Action:** Disconnect now to avoid data loss | **ETA:** Back online in 2 minutes", 
+        "title": "Scheduled Restart in 1 Minute", 
+        "text": "**SERVER RESTART IN 60 SECONDS** | **Action:** Disconnect now to avoid data loss | **ETA:** Back online in 2 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "restartNow": { 
-        "title": "[RESTART] Server Restarting Now", 
-        "text": "**Server Status:** RESTARTING NOW | **Action:** Players will be disconnected | **ETA:** Back online in 1-2 minutes", 
+        "title": "Server Restarting Now", 
+        "text": "**RESTARTING NOW** | **Action:** Players will be disconnected | **ETA:** Back online in 1-2 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_updates": "=== Update Notifications ===",
       "updateAvailable": { 
-        "title": "[UPDATE] Server Update Available", 
-        "text": "**Update Status:** NEW UPDATE AVAILABLE | **Schedule:** Server will update and restart in {delayMinutes} minutes | **Action:** Please finish current activities", 
+        "title": "Server Update Available", 
+        "text": "**NEW UPDATE AVAILABLE** | **Schedule:** Server will update and restart in {delayMinutes} minutes | **Action:** Please finish current activities", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateWarning5": { 
-        "title": "[UPDATE] Update Starting Soon", 
-        "text": "**Update Warning:** SERVER UPDATE IN {warningMinutes} MINUTES | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
+        "title": "Update Starting Soon", 
+        "text": "**SERVER UPDATE IN {warningMinutes} MINUTES** | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "updateStarting": { 
-        "title": "[UPDATE] Server Update Starting", 
-        "text": "**Update Status:** STARTING NOW | **Action:** Server is restarting to install update | **ETA:** Back online in 3-6 minutes", 
+        "title": "Server Update Starting", 
+        "text": "**STARTING NOW** | **Action:** Server is restarting to install update | **ETA:** Back online in 3-6 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "updateCompleted": { 
-        "title": "[SUCCESS] Server Update Completed", 
-        "text": "**Update Status:** COMPLETED SUCCESSFULLY | **Server Status:** Back online with latest updates | **Action:** Safe to reconnect!", 
+        "title": "Server Update Completed", 
+        "text": "**COMPLETED SUCCESSFULLY** | **Server back online with latest updates** | **Action:** Safe to reconnect!", 
         "color": 3066993, 
         "enabled": true 
       },
       "updateInProgress": { 
-        "title": "[UPDATE] Update In Progress", 
-        "text": "**Update Status:** INSTALLING | **Progress:** Downloading and installing server files | **ETA:** Please wait 3-6 minutes", 
+        "title": "Update In Progress", 
+        "text": "**INSTALLING** | **Progress:** Downloading and installing server files | **ETA:** Please wait 3-6 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
 
       "_comment_admin": "=== Admin Actions ===",
       "adminRestartWarning": { 
-        "title": "[ADMIN] Admin Restart Scheduled", 
+        "title": "Admin Restart Scheduled", 
         "text": "**Admin Action:** RESTART SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish current activities", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminRestartWarning5": { 
-        "title": "[ADMIN] Admin Restart Soon", 
+        "title": "Admin Restart Soon", 
         "text": "**Admin Action:** RESTART IN {warningMinutes} MINUTES | **Action:** Save progress and prepare to disconnect | **ETA:** Back online in 2 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminRestartNow": { 
-        "title": "[RESTART] Admin Restart Now", 
+        "title": "Admin Restart Now", 
         "text": "**Admin Action:** RESTARTING NOW | **Status:** Server is restarting by admin command | **ETA:** Back online in 1-2 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStopWarning": { 
-        "title": "[ADMIN] Server Stop Scheduled", 
+        "title": "Server Stop Scheduled", 
         "text": "**Admin Action:** SERVER STOP SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish and disconnect", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopWarning5": { 
-        "title": "[ADMIN] Server Stop Soon", 
+        "title": "Server Stop Soon", 
         "text": "**Admin Action:** SERVER STOP IN {warningMinutes} MINUTES | **Action:** Save progress and disconnect now", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopNow": { 
-        "title": "[STOP] Server Stopping Now", 
+        "title": "Server Stopping Now", 
         "text": "**Admin Action:** SERVER STOPPING NOW | **Status:** Server is being stopped by admin | **Info:** Check announcements for restart time", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStartNow": { 
-        "title": "[START] Server Starting", 
+        "title": "Server Starting", 
         "text": "**Admin Action:** SERVER STARTING | **Status:** Admin is bringing server online | **ETA:** Ready to join in 1-2 minutes", 
         "color": 3066993, 
         "enabled": true 
       },
       "adminUpdateWarning": { 
-        "title": "[ADMIN] Admin Update Scheduled", 
+        "title": "Admin Update Scheduled", 
         "text": "**Admin Action:** UPDATE SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Server will restart for update", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminUpdateWarning5": { 
-        "title": "[ADMIN] Admin Update Soon", 
+        "title": "Admin Update Soon", 
         "text": "**Admin Action:** UPDATE IN {warningMinutes} MINUTES | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminUpdateNow": { 
-        "title": "[UPDATE] Admin Update Now", 
+        "title": "Admin Update Now", 
         "text": "**Admin Action:** UPDATE STARTING NOW | **Status:** Server restarting for admin-initiated update | **ETA:** Back online in 3-6 minutes", 
         "color": 15158332, 
         "enabled": true 
