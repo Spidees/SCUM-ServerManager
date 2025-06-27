@@ -389,6 +389,136 @@ function Backup-Saved {
     }
 }
 
+# --- PERFORMANCE HELPER FUNCTIONS ---
+# Determine performance status based on configurable thresholds
+function Get-PerformanceStatus {
+    param([double]$fps)
+    
+    if ($fps -le 0) { return "Unknown" }
+    
+    if ($fps -ge $performanceThresholds.excellent) {
+        return "Excellent"
+    } elseif ($fps -ge $performanceThresholds.good) {
+        return "Good"
+    } elseif ($fps -ge $performanceThresholds.fair) {
+        return "Fair"
+    } elseif ($fps -ge $performanceThresholds.poor) {
+        return "Poor"
+    } else {
+        return "Critical"
+    }
+}
+
+# Parse FPS and performance data from SCUM server log
+function Get-ServerPerformanceStats {
+    param(
+        [string]$logPath,
+        [int]$maxLines = 100
+    )
+    
+    if (!(Test-Path $logPath)) {
+        return $null
+    }
+    
+    try {
+        $logLines = Get-Content $logPath -Tail $maxLines -ErrorAction Stop
+        
+        # Find the most recent Global Stats entry
+        for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
+            $line = $logLines[$i]
+            
+            if ($line -match 'LogSCUM: Global Stats:') {
+                # Extract timestamp
+                $timestamp = $null
+                if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
+                    try {
+                        $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
+                        $timestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
+                    } catch {
+                        $timestamp = Get-Date
+                    }
+                }
+                
+                # Parse FPS values
+                $fpsValues = @()
+                $frameTimeValues = @()
+                
+                [regex]::Matches($line, '(\d+\.?\d*)ms\s*\(\s*(\d+\.?\d*)FPS\)') | ForEach-Object {
+                    $frameTime = [double]$_.Groups[1].Value
+                    $fps = [double]$_.Groups[2].Value
+                    $frameTimeValues += $frameTime
+                    $fpsValues += $fps
+                }
+                
+                # Extract player count
+                $playerCount = 0
+                if ($line -match 'P:\s*(\d+)\s*\(\s*(\d+)\)') {
+                    $playerCount = [int]$matches[1]
+                }
+                
+                # Extract entity counts
+                $entities = @{
+                }
+                if ($line -match 'C:\s*(\d+)') { $entities['Characters'] = [int]$matches[1] }
+                if ($line -match 'P:\s*(\d+)') { $entities['Players'] = [int]$matches[1] }
+                if ($line -match 'Z:\s*(\d+)') { $entities['Zombies'] = [int]$matches[1] }
+                if ($line -match 'R:\s*(\d+)') { $entities['Replicated'] = [int]$matches[1] }
+                if ($line -match 'S:\s*(\d+)') { $entities['Static'] = [int]$matches[1] }
+                if ($line -match 'A:\s*(\d+)') { $entities['Actors'] = [int]$matches[1] }
+                if ($line -match 'V:\s*(\d+)') { $entities['Vehicles'] = [int]$matches[1] }
+                
+                # Calculate performance metrics
+                $avgFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Average).Average, 1) } else { 0 }
+                $minFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Minimum).Minimum, 1) } else { 0 }
+                $maxFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Maximum).Maximum, 1) } else { 0 }
+                $avgFrameTime = if ($frameTimeValues.Count -gt 0) { [Math]::Round(($frameTimeValues | Measure-Object -Average).Average, 1) } else { 0 }
+                
+                # Determine performance status using configurable thresholds
+                $performanceStatus = Get-PerformanceStatus $avgFPS
+                
+                return @{
+                    Timestamp = $timestamp
+                    AverageFPS = $avgFPS
+                    MinFPS = $minFPS
+                    MaxFPS = $maxFPS
+                    AverageFrameTime = $avgFrameTime
+                    FPSValues = $fpsValues
+                    FrameTimeValues = $frameTimeValues
+                    PlayerCount = $playerCount
+                    Entities = $entities
+                    PerformanceStatus = $performanceStatus
+                    RawLine = $line
+                }
+            }
+        }
+        
+        return $null
+        
+    } catch {
+        Write-Log "[DEBUG] Error parsing performance stats: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# Get performance summary for notifications and monitoring
+function Get-PerformanceSummary {
+    param([hashtable]$perfStats)
+    
+    if ($null -eq $perfStats) {
+        return "Performance data not available"
+    }
+    
+    $summary = "FPS: $($perfStats.AverageFPS) avg"
+    if ($perfStats.MinFPS -ne $perfStats.MaxFPS) {
+        $summary += " ($($perfStats.MinFPS)-$($perfStats.MaxFPS))"
+    }
+    $summary += ", Frame: $($perfStats.AverageFrameTime)ms"
+    $summary += ", Players: $($perfStats.PlayerCount)"
+    $summary += ", Status: $($perfStats.PerformanceStatus)"
+    
+    return $summary
+}
+
 # --- SCUM LOG MONITORING SYSTEM ---
 # Analyzes SCUM.log and determines exact server state
 function Get-SCUMServerStatus {
@@ -1553,135 +1683,6 @@ $performanceLogInterval = if ($config.performanceLogIntervalMinutes) { $config.p
 $fpsAlertThreshold = if ($config.fpsAlertThreshold) { $config.fpsAlertThreshold } else { 15 }
 $fpsWarningThreshold = if ($config.fpsWarningThreshold) { $config.fpsWarningThreshold } else { 20 }
 
-# --- PERFORMANCE HELPER FUNCTIONS ---
-# Determine performance status based on configurable thresholds
-function Get-PerformanceStatus {
-    param([double]$fps)
-    
-    if ($fps -le 0) { return "Unknown" }
-    
-    if ($fps -ge $performanceThresholds.excellent) {
-        return "Excellent"
-    } elseif ($fps -ge $performanceThresholds.good) {
-        return "Good"
-    } elseif ($fps -ge $performanceThresholds.fair) {
-        return "Fair"
-    } elseif ($fps -ge $performanceThresholds.poor) {
-        return "Poor"
-    } else {
-        return "Critical"
-    }
-}
-
-# Parse FPS and performance data from SCUM server log
-function Get-ServerPerformanceStats {
-    param(
-        [string]$logPath,
-        [int]$maxLines = 100
-    )
-    
-    if (!(Test-Path $logPath)) {
-        return $null
-    }
-    
-    try {
-        $logLines = Get-Content $logPath -Tail $maxLines -ErrorAction Stop
-        
-        # Find the most recent Global Stats entry
-        for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
-            $line = $logLines[$i]
-            
-            if ($line -match 'LogSCUM: Global Stats:') {
-                # Extract timestamp
-                $timestamp = $null
-                if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
-                    try {
-                        $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
-                        $timestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
-                    } catch {
-                        $timestamp = Get-Date
-                    }
-                }
-                
-                # Parse FPS values
-                $fpsValues = @()
-                $frameTimeValues = @()
-                
-                [regex]::Matches($line, '(\d+\.?\d*)ms\s*\(\s*(\d+\.?\d*)FPS\)') | ForEach-Object {
-                    $frameTime = [double]$_.Groups[1].Value
-                    $fps = [double]$_.Groups[2].Value
-                    $frameTimeValues += $frameTime
-                    $fpsValues += $fps
-                }
-                
-                # Extract player count
-                $playerCount = 0
-                if ($line -match 'P:\s*(\d+)\s*\(\s*(\d+)\)') {
-                    $playerCount = [int]$matches[1]
-                }
-                
-                # Extract entity counts
-                $entities = @{
-                }
-                if ($line -match 'C:\s*(\d+)') { $entities['Characters'] = [int]$matches[1] }
-                if ($line -match 'P:\s*(\d+)') { $entities['Players'] = [int]$matches[1] }
-                if ($line -match 'Z:\s*(\d+)') { $entities['Zombies'] = [int]$matches[1] }
-                if ($line -match 'R:\s*(\d+)') { $entities['Replicated'] = [int]$matches[1] }
-                if ($line -match 'S:\s*(\d+)') { $entities['Static'] = [int]$matches[1] }
-                if ($line -match 'A:\s*(\d+)') { $entities['Actors'] = [int]$matches[1] }
-                if ($line -match 'V:\s*(\d+)') { $entities['Vehicles'] = [int]$matches[1] }
-                
-                # Calculate performance metrics
-                $avgFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Average).Average, 1) } else { 0 }
-                $minFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Minimum).Minimum, 1) } else { 0 }
-                $maxFPS = if ($fpsValues.Count -gt 0) { [Math]::Round(($fpsValues | Measure-Object -Maximum).Maximum, 1) } else { 0 }
-                $avgFrameTime = if ($frameTimeValues.Count -gt 0) { [Math]::Round(($frameTimeValues | Measure-Object -Average).Average, 1) } else { 0 }
-                
-                # Determine performance status using configurable thresholds
-                $performanceStatus = Get-PerformanceStatus $avgFPS
-                
-                return @{
-                    Timestamp = $timestamp
-                    AverageFPS = $avgFPS
-                    MinFPS = $minFPS
-                    MaxFPS = $maxFPS
-                    AverageFrameTime = $avgFrameTime
-                    FPSValues = $fpsValues
-                    FrameTimeValues = $frameTimeValues
-                    PlayerCount = $playerCount
-                    Entities = $entities
-                    PerformanceStatus = $performanceStatus
-                    RawLine = $line
-                }
-            }
-        }
-        
-        return $null
-        
-    } catch {
-        Write-Log "[DEBUG] Error parsing performance stats: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-# Get performance summary for notifications and monitoring
-function Get-PerformanceSummary {
-    param([hashtable]$perfStats)
-    
-    if ($null -eq $perfStats) {
-        return "Performance data not available"
-    }
-    
-    $summary = "FPS: $($perfStats.AverageFPS) avg"
-    if ($perfStats.MinFPS -ne $perfStats.MaxFPS) {
-        $summary += " ($($perfStats.MinFPS)-$($perfStats.MaxFPS))"
-    }
-    $summary += ", Frame: $($perfStats.AverageFrameTime)ms"
-    $summary += ", Players: $($perfStats.PlayerCount)"
-    $summary += ", Status: $($perfStats.PerformanceStatus)"
-    
-    return $summary
-}
 # --- MAIN MONITORING LOOP ---
 Write-Log "[INFO] Starting main server monitoring loop..."
 
