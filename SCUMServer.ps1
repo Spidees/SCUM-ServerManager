@@ -437,9 +437,13 @@ function Get-SCUMServerStatus {
             }
             
             # Detect crash/error patterns - but not common SCUM warnings and errors
+            # Only consider it a crash if we have recent activity and real fatal errors
             if ($line -match '(Fatal|Critical|Crash|Exception)' -and 
-                $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time') {
-                $crashDetected = $true
+                $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time|LogStats|LogCore.*packagename|LogUObjectGlobals|LogAssetRegistry') {
+                # Only mark as crashed if this is a recent error (not just startup noise)
+                if ($lastTimestamp -and ((Get-Date) - $lastTimestamp).TotalMinutes -lt 5) {
+                    $crashDetected = $true
+                }
             }
             
             # Extract player count (from Global Stats)
@@ -461,7 +465,7 @@ function Get-SCUMServerStatus {
         
         # Determine final state
         $finalStatus = "Unknown"
-        if ($crashDetected) {
+        if ($crashDetected -and $lastTimestamp) {  # Only mark as crashed if we have logs and detected crash
             $finalStatus = "Crashed"
             $isOnline = $false
         } elseif ($hangDetected) {
@@ -480,9 +484,15 @@ function Get-SCUMServerStatus {
             # If state is unclear, check Windows service
             if (Check-ServiceRunning $serviceName) {
                 # If service is running but log is old, probably server is running but not writing logs
-                if ($timeSinceLastActivity -le 180) { # 3 hodiny tolerance
-                    $finalStatus = "Online"
-                    $isOnline = $true
+                if ($timeSinceLastActivity -le 180) { # 3 hours tolerance
+                    # If we have very recent service start but no clear logs yet, assume starting
+                    if ($timeSinceLastActivity -le 10) {
+                        $finalStatus = "Starting"
+                        $isOnline = $false
+                    } else {
+                        $finalStatus = "Online"
+                        $isOnline = $true
+                    }
                 } else {
                     $finalStatus = "Starting"
                     $isOnline = $false
@@ -605,30 +615,78 @@ function Check-ServiceRunning {
     return $svc.Status -eq 'Running'
 }
 
-# Check if server was stopped intentionally (not a crash)
+# Check if server was stopped intentionally (not a crash) - Enhanced detection
 function Test-IntentionalStop {
-    param([string]$serviceName)
+    param(
+        [string]$serviceName,
+        [int]$minutesToCheck = 10
+    )
     
-    # Check recent Windows Event Log for manual stop events
+    $since = (Get-Date).AddMinutes(-$minutesToCheck)
+    
     try {
-        $recentEvents = Get-EventLog -LogName System -Source "Service Control Manager" -After (Get-Date).AddMinutes(-5) -ErrorAction SilentlyContinue | 
-                      Where-Object { $_.Message -like "*$serviceName*" -and $_.EventID -eq 7036 -and $_.Message -like "*stopped*" } | 
-                      Select-Object -First 1
+        # Method 1: Check Application Event Log for service wrapper (NSSM) events
+        $serviceEvents = Get-WinEvent -FilterHashtable @{
+            LogName = 'Application'
+            StartTime = $since
+        } -ErrorAction SilentlyContinue | Where-Object {
+            $_.Message -like "*$serviceName*" -and (
+                $_.Message -like "*received STOP control*" -or
+                $_.Message -like "*service*stopping*" -or
+                $_.Message -like "*Killing process*service*stopping*"
+            )
+        }
         
-        if ($recentEvents) {
-            # Check if the event message indicates manual stop vs crash
-            $eventMessage = $recentEvents.Message
-            if ($eventMessage -like "*stopped*" -and $eventMessage -notlike "*unexpected*" -and $eventMessage -notlike "*error*") {
-                Write-Log "[DEBUG] Recent service stop event found - appears to be intentional stop"
-                return $true
+        if ($serviceEvents) {
+            Write-Log "[DEBUG] Application log shows service received stop control - intentional stop"
+            return $true
+        }
+        
+        # Method 2: Check System Event Log for service control events
+        $systemEvents = Get-WinEvent -FilterHashtable @{
+            LogName = 'System'
+            ID = @(7036, 7040) # Service state change, service start type change
+            StartTime = $since
+        } -ErrorAction SilentlyContinue | Where-Object {
+            $_.Message -like "*$serviceName*" -and $_.Message -like "*stopped*"
+        }
+        
+        if ($systemEvents) {
+            Write-Log "[DEBUG] System log shows service stop event - likely intentional stop"
+            return $true
+        }
+        
+        # Method 3: Check for clean shutdown pattern in SCUM log
+        $logPath = Join-Path $serverDir "SCUM\Saved\Logs\SCUM.log"
+        if (Test-Path $logPath) {
+            $logContent = Get-Content $logPath -Tail 20 -ErrorAction SilentlyContinue
+            $cleanShutdownPatterns = @(
+                "LogExit: Exiting.",
+                "Log file closed",
+                "Shutting down and abandoning module"
+            )
+            
+            foreach ($pattern in $cleanShutdownPatterns) {
+                if ($logContent -match [regex]::Escape($pattern)) {
+                    Write-Log "[DEBUG] SCUM log shows clean shutdown pattern - intentional stop"
+                    return $true
+                }
             }
         }
+        
+        # Method 4: Consider timing - stops during normal hours are more likely intentional
+        $currentHour = (Get-Date).Hour
+        if ($currentHour -ge 8 -and $currentHour -le 22) {
+            Write-Log "[DEBUG] Service stopped during normal hours - more likely intentional"
+            # Don't return true based on timing alone, but it's a strong hint
+        }
+        
     } catch {
-        Write-Log "[DEBUG] Could not check Event Log for stop reason: $_"
+        Write-Log "[DEBUG] Error checking intentional stop: $($_.Exception.Message)"
     }
     
-    # If we can't determine from events, assume it's intentional if stopped recently
-    # and server was running normally before
+    # Default to false - treat as unintentional unless we have clear evidence
+    Write-Log "[DEBUG] No clear evidence of intentional stop found - treating as unintentional"
     return $false
 }
 
@@ -1327,7 +1385,7 @@ if ($runUpdateOnStart -and -not $firstInstall) {
                 Notify-AdminActionResult "startup after update check" "completed successfully" "ONLINE"
             } else {
                 Write-Log "[ERROR] SCUM server failed to start after backup and update check: $($startupResult.Reason)"
-                Send-Notification admin "startError" @{
+                Send-Notification admin "restartError" @{
                     error = "The SCUM server failed to start after backup and update check: $($startupResult.Reason)"
                 }
                 Notify-AdminActionResult "startup after update check" "failed - $($startupResult.Reason)" "OFFLINE"
@@ -1360,7 +1418,7 @@ if ($runUpdateOnStart -and -not $firstInstall) {
             Notify-AdminActionResult "startup after backup" "completed successfully" "ONLINE"
         } else {
             Write-Log "[ERROR] SCUM server failed to start after backup: $($startupResult.Reason)"
-            Send-Notification admin "startError" @{
+            Send-Notification admin "restartError" @{
                 error = "The SCUM server failed to start after backup: $($startupResult.Reason)"
             }
             Notify-AdminActionResult "startup after backup" "failed - $($startupResult.Reason)" "OFFLINE"
