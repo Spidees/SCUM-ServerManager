@@ -59,6 +59,38 @@
         "enabled": true 
       },
 
+      "_comment_performance": "=== Performance Monitoring ===",
+      "performanceExcellent": { 
+        "title": "Performance Excellent", 
+        "text": "Server performance is excellent! {performanceSummary}", 
+        "color": 3066993, 
+        "enabled": false 
+      },
+      "performanceGood": { 
+        "title": "Performance Good", 
+        "text": "Server performance is good. {performanceSummary}", 
+        "color": 7844437, 
+        "enabled": false 
+      },
+      "performanceFair": { 
+        "title": "Performance Fair", 
+        "text": "Server performance is fair - monitoring recommended. {performanceSummary}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "performancePoor": { 
+        "title": "Performance Poor", 
+        "text": "⚠️ Server performance is poor! {performanceSummary}", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "performanceCritical": { 
+        "title": "Performance Critical", 
+        "text": "🚨 Server performance is critical! Immediate attention required. {performanceSummary}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
       "_comment_system": "=== System & Manager Events ===",
       "managerStarted": { 
         "title": "Manager Started", 
@@ -419,9 +451,22 @@
   
   "_comment_security": "=== Security & Performance Settings ===",
   "enableDetailedLogging": true,
-  "enablePerformanceMonitoring": false,
+  "enablePerformanceMonitoring": true,
+  "performanceLogIntervalMinutes": 5,
+  "fpsAlertThreshold": 15,
+  "fpsWarningThreshold": 20,
   "maxLogFileSizeMB": 100,
   "logRotationEnabled": true,
   "enableCrashDumpCollection": false,
-  "allowEmergencyCommands": true
+  "allowEmergencyCommands": true,
+  
+  "_comment_performance_thresholds": "=== Performance Status Thresholds (FPS) ===",
+  "performanceThresholds": {
+    "_comment": "Configure FPS thresholds for performance status categories. Adjust based on your server hardware.",
+    "excellent": 30,
+    "good": 20,
+    "fair": 15,
+    "poor": 10,
+    "critical": 0
+  }
 }
