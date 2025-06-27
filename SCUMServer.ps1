@@ -1294,18 +1294,20 @@ function Poll-AdminCommands {
                         $timeSinceLastAttempt = if ($global:LastAutoRestartAttempt) { [Math]::Round(((Get-Date) - $global:LastAutoRestartAttempt).TotalMinutes, 1) } else { "N/A" }
                         $intentionallyStopped = if ($global:ServerIntentionallyStopped) { "YES" } else { "NO" }
                         
-                        $statusReport = @"
-**Server Status Report:**
-* SCUM Server Status: $($serverStatus.Status) ($($serverStatus.Phase))
-* Windows Service: $(if ($serviceRunning) { "RUNNING" } else { "STOPPED" })
-* Players Online: $($serverStatus.PlayerCount)
-* Last Activity: $($serverStatus.LastActivity)
-* Intentionally Stopped: $intentionallyStopped
-* Auto-restart Attempts: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)
-* Minutes Since Last Attempt: $timeSinceLastAttempt
-* Cooldown Period: $($global:AutoRestartCooldownMinutes) minutes
-* Performance Thresholds: Excellent >=$($performanceThresholds.excellent)fps, Good >=$($performanceThresholds.good)fps, Fair >=$($performanceThresholds.fair)fps, Poor >=$($performanceThresholds.poor)fps
-"@
+                        # Create a comprehensive status report with performance and important server data
+                        $serverStatus = Get-SCUMServerStatus
+                        $performanceStats = $serverStatus.PerformanceStats
+                        $nextRestart = Get-NextScheduledRestart $restartTimes
+                        
+                        $statusReport = "**SCUM Server Status:** $($serverStatus.Status) ($($serverStatus.Phase)) | " +
+                            "**Players:** $($serverStatus.PlayerCount) | " +
+                            "**Performance:** $(if ($performanceStats) { "FPS: $($performanceStats.AverageFPS) avg ($($performanceStats.MinFPS)-$($performanceStats.MaxFPS)), Frame: $($performanceStats.AverageFrameTime)ms, Status: $($performanceStats.PerformanceStatus)" } else { "No data" }) | " +
+                            "**Service:** $(if ($serviceRunning) { "RUNNING" } else { "STOPPED" }) | " +
+                            "**Last Activity:** $(if ($serverStatus.LastActivity) { $serverStatus.LastActivity.ToString('yyyy-MM-dd HH:mm:ss') } else { 'Unknown' }) | " +
+                            "**Next Restart:** $($nextRestart.ToString('yyyy-MM-dd HH:mm:ss')) | " +
+                            "**Auto-restart:** $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts) attempts | " +
+                            "**Entities:** $(if ($performanceStats -and $performanceStats.Entities) { "C:$($performanceStats.Entities.Characters) Z:$($performanceStats.Entities.Zombies) V:$($performanceStats.Entities.Vehicles)" } else { "No data" })"
+                        
                         Send-Notification admin "otherEvent" @{ event = $statusReport }
                     }
                 }
