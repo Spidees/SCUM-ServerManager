@@ -119,7 +119,7 @@ function Send-Notification {
     $embed = @{ description = $msg }
     if ($title) { $embed.title = $title }
     if ($color) { $embed.color = $color }
-    $embed.footer = @{ text = "SCUM Server Manager | $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"; icon_url = "https://playhub.cz/scum/playhub_icon.png" }
+    $embed.footer = @{ text = "SCUM Server Automation | $(Get-Date -Format 'HH:mm:ss yyyy-MM-dd')"; icon_url = "https://playhub.cz/scum/manager/server_automation_discord.png" }
     # Prepare role mentions
     $content = ""
     $roleIdArr = $null
