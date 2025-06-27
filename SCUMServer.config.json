@@ -8,6 +8,59 @@
   "serverDir": "./server",
   "appId": "3792580",
   "botToken": "",
+
+  "_comment_settings": "=== Server Management Settings ===",
+  "restartTimes": ["02:00", "14:00", "20:00"],
+  "backupIntervalMinutes": 60,
+  "periodicBackupEnabled": true,
+  "updateCheckIntervalMinutes": 10,
+  "updateDelayMinutes": 15,
+  "maxBackups": 10,
+  "compressBackups": true,
+  "runBackupOnStart": false,
+  "runUpdateOnStart": true,
+  
+  "_comment_antispam": "=== Anti-Spam & Stability Settings ===",
+  "autoRestartCooldownMinutes": 2,
+  "maxConsecutiveRestartAttempts": 3,
+  "serverStartupTimeoutMinutes": 10,
+  "serverShutdownTimeoutMinutes": 5,
+  "logAnalysisMaxLines": 1000,
+  "playerCountCheckIntervalMinutes": 5,
+  
+  "_comment_notifications": "=== Notification Behavior Settings ===",
+  "suppressDuplicateNotifications": true,
+  "suppressNotificationsDuringMaintenance": false,
+  "notificationRateLimitMinutes": 1,
+  "adminNotificationAlways": true,
+  "playerNotificationMinimumPlayers": 0,
+  
+  "_comment_security": "=== Security & Performance Settings ===",
+  "enableDetailedLogging": true,
+  "enablePerformanceMonitoring": true,
+  "performanceLogIntervalMinutes": 5,
+  "fpsAlertThreshold": 15,
+  "fpsWarningThreshold": 20,
+  "maxLogFileSizeMB": 100,
+  "logRotationEnabled": true,
+  "enableCrashDumpCollection": false,
+  "allowEmergencyCommands": true,
+  
+  "_comment_performance_thresholds": "=== Performance Status Thresholds (FPS) ===",
+  "performanceThresholds": {
+    "_comment": "Configure FPS thresholds for performance status categories. Adjust based on your server hardware.",
+    "excellent": 30,
+    "good": 20,
+    "fair": 15,
+    "poor": 10,
+    "critical": 0
+  },
+
+    "admin_command_channel": {
+    "channelIds": [""],
+    "roleIds": [""],
+    "commandPrefix": "!"
+  }
   
   "admin_notification": {
     "method": "bot",
@@ -355,118 +408,66 @@
 
       "_comment_admin": "=== Admin Actions ===",
       "adminRestartWarning": { 
-        "title": "Admin Restart Scheduled", 
-        "text": "**Admin Action:** RESTART SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish current activities", 
+        "title": "Restart Scheduled", 
+        "text": "**Action:** RESTART SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish current activities", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminRestartWarning5": { 
-        "title": "Admin Restart Soon", 
-        "text": "**Admin Action:** RESTART IN {warningMinutes} MINUTES | **Action:** Save progress and prepare to disconnect | **ETA:** Back online in 2 minutes", 
+        "title": "Server Restart Soon", 
+        "text": "**Action:** RESTART IN {warningMinutes} MINUTES | **Action:** Save progress and prepare to disconnect | **ETA:** Back online in 2 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminRestartNow": { 
-        "title": "Admin Restart Now", 
-        "text": "**Admin Action:** RESTARTING NOW | **Status:** Server is restarting by admin command | **ETA:** Back online in 1-2 minutes", 
+        "title": "Server Restart Now", 
+        "text": "**Action:** RESTARTING NOW | **Status:** Server is restarting by admin command | **ETA:** Back online in 1-2 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStopWarning": { 
         "title": "Server Stop Scheduled", 
-        "text": "**Admin Action:** SERVER STOP SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish and disconnect", 
+        "text": "**Action:** SERVER STOP SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish and disconnect", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopWarning5": { 
         "title": "Server Stop Soon", 
-        "text": "**Admin Action:** SERVER STOP IN {warningMinutes} MINUTES | **Action:** Save progress and disconnect now", 
+        "text": "**Action:** SERVER STOP IN {warningMinutes} MINUTES | **Action:** Save progress and disconnect now", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopNow": { 
         "title": "Server Stopping Now", 
-        "text": "**Admin Action:** SERVER STOPPING NOW | **Status:** Server is being stopped by admin | **Info:** Check announcements for restart time", 
+        "text": "**Action:** SERVER STOPPING NOW | **Status:** Server is being stopped by admin | **Info:** Check announcements for restart time", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStartNow": { 
         "title": "Server Starting", 
-        "text": "**Admin Action:** SERVER STARTING | **Status:** Admin is bringing server online | **ETA:** Ready to join in 1-2 minutes", 
+        "text": "**Action:** SERVER STARTING | **Status:** Admin is bringing server online | **ETA:** Ready to join in 1-2 minutes", 
         "color": 3066993, 
         "enabled": true 
       },
       "adminUpdateWarning": { 
-        "title": "Admin Update Scheduled", 
-        "text": "**Admin Action:** UPDATE SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Server will restart for update", 
+        "title": "Server Update Scheduled", 
+        "text": "**Action:** UPDATE SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Server will restart for update", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminUpdateWarning5": { 
-        "title": "Admin Update Soon", 
-        "text": "**Admin Action:** UPDATE IN {warningMinutes} MINUTES | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
+        "title": "Server Update Soon", 
+        "text": "**Action:** UPDATE IN {warningMinutes} MINUTES | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminUpdateNow": { 
-        "title": "Admin Update Now", 
-        "text": "**Admin Action:** UPDATE STARTING NOW | **Status:** Server restarting for admin-initiated update | **ETA:** Back online in 3-6 minutes", 
+        "title": "Server Update Now", 
+        "text": "**Action:** UPDATE STARTING NOW | **Status:** Server restarting for admin-initiated update | **ETA:** Back online in 3-6 minutes", 
         "color": 15158332, 
         "enabled": true 
       }
     }
-  },
-  
-  "admin_command_channel": {
-    "channelIds": [""],
-    "roleIds": [""],
-    "commandPrefix": "!"
-  },
-  
-  "_comment_settings": "=== Server Management Settings ===",
-  "restartTimes": ["02:00", "14:00", "20:00"],
-  "backupIntervalMinutes": 60,
-  "periodicBackupEnabled": true,
-  "updateCheckIntervalMinutes": 10,
-  "updateDelayMinutes": 15,
-  "maxBackups": 10,
-  "compressBackups": true,
-  "runBackupOnStart": false,
-  "runUpdateOnStart": true,
-  
-  "_comment_antispam": "=== Anti-Spam & Stability Settings ===",
-  "autoRestartCooldownMinutes": 2,
-  "maxConsecutiveRestartAttempts": 3,
-  "serverStartupTimeoutMinutes": 10,
-  "serverShutdownTimeoutMinutes": 5,
-  "logAnalysisMaxLines": 1000,
-  "playerCountCheckIntervalMinutes": 5,
-  
-  "_comment_notifications": "=== Notification Behavior Settings ===",
-  "suppressDuplicateNotifications": true,
-  "suppressNotificationsDuringMaintenance": false,
-  "notificationRateLimitMinutes": 1,
-  "adminNotificationAlways": true,
-  "playerNotificationMinimumPlayers": 0,
-  
-  "_comment_security": "=== Security & Performance Settings ===",
-  "enableDetailedLogging": true,
-  "enablePerformanceMonitoring": true,
-  "performanceLogIntervalMinutes": 5,
-  "fpsAlertThreshold": 15,
-  "fpsWarningThreshold": 20,
-  "maxLogFileSizeMB": 100,
-  "logRotationEnabled": true,
-  "enableCrashDumpCollection": false,
-  "allowEmergencyCommands": true,
-  
-  "_comment_performance_thresholds": "=== Performance Status Thresholds (FPS) ===",
-  "performanceThresholds": {
-    "_comment": "Configure FPS thresholds for performance status categories. Adjust based on your server hardware.",
-    "excellent": 30,
-    "good": 20,
-    "fair": 15,
-    "poor": 10,
-    "critical": 0
   }
+  
 }
