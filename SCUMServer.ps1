@@ -1,5 +1,5 @@
 # ==========================
-# SCUM SERVER MANAGER - Automated server management
+# SCUM Server Automation - SCUM Dedicated Server Management for Windows
 # ==========================
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -46,13 +46,13 @@ function Send-Notification {
         [Parameter()] [hashtable]$vars = @{} # Template variables
     )
     
-    # Anti-spam a rate limiting kontrola
+    # Anti-spam and rate limiting check
     $suppressDuplicates = if ($config.suppressDuplicateNotifications -ne $null) { $config.suppressDuplicateNotifications } else { $true }
     $rateLimitMinutes = if ($config.notificationRateLimitMinutes) { $config.notificationRateLimitMinutes } else { 1 }
     $adminAlways = if ($config.adminNotificationAlways -ne $null) { $config.adminNotificationAlways } else { $true }
     $minPlayersForPlayerNotif = if ($config.playerNotificationMinimumPlayers) { $config.playerNotificationMinimumPlayers } else { 0 }
     
-    # Vytvořit klíč pro tracking duplicitních zpráv
+    # Create key for tracking duplicate messages
     $notificationKey = "$type-$messageKey"
     $now = Get-Date
     
@@ -61,7 +61,7 @@ function Send-Notification {
         $global:LastNotifications = @{}
     }
     
-    # Kontrola rate limiting
+    # Check rate limiting
     if ($global:LastNotifications[$notificationKey]) {
         $timeSinceLastMinutes = ($now - $global:LastNotifications[$notificationKey]).TotalMinutes
         if ($timeSinceLastMinutes -lt $rateLimitMinutes) {
@@ -75,7 +75,7 @@ function Send-Notification {
         }
     }
     
-    # Kontrola minimálního počtu hráčů pro player notifikace
+    # Check minimum player count for player notifications
     if ($type -eq 'player' -and $vars.ContainsKey('playerCount')) {
         $currentPlayers = [int]$vars['playerCount']
         if ($currentPlayers -lt $minPlayersForPlayerNotif) {
@@ -154,11 +154,11 @@ function Send-Notification {
                             "User-Agent" = "SCUM-Server-Manager/1.0"
                         }
                         
-                        # Pošli nejdříve jednoduchý fallback, pak embed
+                        # Send simple fallback first, then embed
                         $simpleBody = @{ content = "[BOT] **$title** - $msg" }
                         if ($content -ne "") { $simpleBody.content = "$content`n$($simpleBody.content)" }
                         
-                        # Pokus o embed, při chybě použij jednoduchou zprávu
+                        # Try embed, use simple message on error
                         try {
                             $body = @{ embeds = @($embed) }
                             if ($content -ne "") { $body.content = $content }
@@ -166,7 +166,7 @@ function Send-Notification {
                             $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Post -ContentType 'application/json' -Body $bodyJson -ErrorAction Stop
                             Write-Log ("[INFO] Bot embed notification sent to channel {0}: {1}" -f $channelId, $msg)
                         } catch {
-                            # Fallback na jednoduchou zprávu
+                            # Fallback to simple message
                             $simpleBodyJson = $simpleBody | ConvertTo-Json -Depth 2
                             $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Post -ContentType 'application/json' -Body $simpleBodyJson -ErrorAction Stop
                             Write-Log ("[INFO] Bot simple notification sent to channel {0}: {1}" -f $channelId, $msg)
@@ -189,10 +189,10 @@ function Send-Notification {
 function Write-Log {
     param([string]$msg)
     
-    # Zkontrolovat, jestli je detailní logování povoleno
+    # Check if detailed logging is enabled
     $enableDetailedLogging = if ($config.enableDetailedLogging -ne $null) { $config.enableDetailedLogging } else { $true }
     
-    # Pokud je logování vypnuto, zobrazit jen na konzoli
+    # If logging is disabled, only show on console
     if (-not $enableDetailedLogging -and $msg -like "*[INFO]*") {
         Write-Host $msg
         return
@@ -202,7 +202,7 @@ function Write-Log {
     $line = "$timestamp $msg"
     $logPath = Join-Path -Path $PSScriptRoot -ChildPath "SCUMServer.log"
     
-    # Zkontrolovat velikost log souboru a rotovat pokud je potřeba
+    # Check log file size and rotate if needed
     $maxLogFileSizeMB = if ($config.maxLogFileSizeMB) { $config.maxLogFileSizeMB } else { 100 }
     if ($config.logRotationEnabled -and (Test-Path $logPath)) {
         $fileSize = (Get-Item $logPath).Length / 1MB
@@ -345,7 +345,7 @@ function Backup-Saved {
 }
 
 # --- SCUM LOG MONITORING SYSTEM ---
-# Analyzuje SCUM.log a určí přesný stav serveru
+# Analyzes SCUM.log and determines exact server state
 function Get-SCUMServerStatus {
     $scumLogPath = Join-Path $savedDir "Logs\SCUM.log"
     
@@ -361,7 +361,7 @@ function Get-SCUMServerStatus {
     }
     
     try {
-        # Čteme konfigurovatelný počet posledních řádků pro analýzu
+        # Read configurable number of last lines for analysis
         $maxLines = if ($config.logAnalysisMaxLines) { $config.logAnalysisMaxLines } else { 1000 }
         $logLines = Get-Content $scumLogPath -Tail $maxLines -ErrorAction Stop
         if ($logLines.Count -eq 0) {
@@ -375,7 +375,7 @@ function Get-SCUMServerStatus {
             }
         }
         
-        # Analyzujeme log patterns
+        # Analyze log patterns
         $lastTimestamp = $null
         $serverPhase = "Unknown"
         $playerCount = 0
@@ -383,66 +383,66 @@ function Get-SCUMServerStatus {
         $crashDetected = $false
         $hangDetected = $false
         
-        # Procházíme řádky odzadu (nejnovější první)
+        # Process lines backwards (newest first)
         for ($i = $logLines.Count - 1; $i -ge 0; $i--) {
             $line = $logLines[$i]
             
-            # Extrakce timestampu
+            # Extract timestamp
             if ($line -match '^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})') {
-                if ($lastTimestamp -eq $null) {
+                if ($null -eq $lastTimestamp) {
                     try {
                         $timestampStr = $matches[1] -replace '(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})', '$1-$2-$3 $4:$5:$6.$7'
                         $lastTimestamp = [DateTime]::ParseExact($timestampStr, 'yyyy-MM-dd HH:mm:ss.fff', $null)
                     } catch {
-                        # Pokud se nepodaří parsovat, použijeme aproximaci
+                        # If parsing fails, use approximation
                         $lastTimestamp = (Get-Date).AddMinutes(-1)
                     }
                 }
             }
             
-            # Detekce klíčových stavů (nejnovější vzorem vyhrává)
+            # Detect key states (newest pattern wins)
             if ($line -match 'Match State Changed to InProgress') {
                 $serverPhase = "Online"
                 $isOnline = $true
                 break
             } elseif ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
-                # Server běží a generuje statistiky - to znamená že je online
+                # Server is running and generating statistics - this means it's online
                 $serverPhase = "Online"
                 $isOnline = $true
                 if ($matches.Count -ge 2) {
                     $playerCount = [int]$matches[1]
                 }
-                # Nevěšíme break - pokračujeme hledat novější záznamy
+                # Don't break - continue looking for newer records
             } elseif ($line -match 'Match State Changed to') {
                 $serverPhase = "Loading"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             } elseif ($line -match 'LogWorld:.*Bringing World.*online') {
                 $serverPhase = "Loading"
-                # Nevěšíme break - Global Stats má vyšší prioritu  
+                # Don't break - Global Stats has higher priority  
             } elseif ($line -match 'LogGameState:.*Match State.*WaitingToStart') {
                 $serverPhase = "Loading"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             } elseif ($line -match 'LogWorld:.*World.*initialized') {
                 $serverPhase = "Loading"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             } elseif ($line -match 'LogInit:.*Engine is initialized') {
                 $serverPhase = "Starting"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             } elseif ($line -match 'LogSCUMServer:.*Server.*starting') {
                 $serverPhase = "Starting"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             } elseif ($line -match 'BeginPlay.*World') {
                 $serverPhase = "Starting"
-                # Nevěšíme break - Global Stats má vyšší prioritu
+                # Don't break - Global Stats has higher priority
             }
             
-            # Detekce crash/error patterns - ale ne běžné SCUM warningy a errory
+            # Detect crash/error patterns - but not common SCUM warnings and errors
             if ($line -match '(Fatal|Critical|Crash|Exception)' -and 
                 $line -notmatch 'LogStreaming|LogTexture|LogSCUM|LogQuadTree|LogEntitySystem|LogNet.*Very long time') {
                 $crashDetected = $true
             }
             
-            # Extrakce počtu hráčů (z Global Stats)
+            # Extract player count (from Global Stats)
             if ($line -match 'Global Stats:.*\|\s*C:\s*\d+.*P:\s*(\d+)') {
                 $playerCount = [int]$matches[1]
             } elseif ($line -match 'Players.*?(\d+)') {
@@ -450,16 +450,16 @@ function Get-SCUMServerStatus {
             }
         }
         
-        # Detekce hang (žádná aktivita v posledních 30 minutách během expected online stavu)
+        # Detect hang (no activity in last 30 minutes during expected online state)
         $timeSinceLastActivity = if ($lastTimestamp) { ((Get-Date) - $lastTimestamp).TotalMinutes } else { 999 }
         if ($timeSinceLastActivity -gt 30 -and $serverPhase -in @("Loading", "Online")) {
-            # Ale jen pokud služba skutečně neběží
+            # But only if service is actually not running
             if (!(Check-ServiceRunning $serviceName)) {
                 $hangDetected = $true
             }
         }
         
-        # Určení finálního stavu
+        # Determine final state
         $finalStatus = "Unknown"
         if ($crashDetected) {
             $finalStatus = "Crashed"
@@ -477,9 +477,9 @@ function Get-SCUMServerStatus {
             $finalStatus = "Starting"
             $isOnline = $false
         } else {
-            # Pokud není jasný stav, zkontrolujeme Windows službu
+            # If state is unclear, check Windows service
             if (Check-ServiceRunning $serviceName) {
-                # Pokud služba běží ale log je starý, pravděpodobně server běží ale nepíše logy
+                # If service is running but log is old, probably server is running but not writing logs
                 if ($timeSinceLastActivity -le 180) { # 3 hodiny tolerance
                     $finalStatus = "Online"
                     $isOnline = $true
@@ -516,7 +516,7 @@ function Get-SCUMServerStatus {
     }
 }
 
-# Monitoruje startup serveru na základě logu až do skutečného online stavu
+# Monitors server startup based on log until actual online state
 function Monitor-SCUMServerStartup {
     param(
         [string]$context = "startup",
@@ -524,7 +524,7 @@ function Monitor-SCUMServerStartup {
         [int]$checkIntervalSeconds = 15
     )
     
-    # Použít konfigurovatelný timeout
+    # Use configurable timeout
     if ($maxWaitMinutes -eq 0) {
         $maxWaitMinutes = if ($config.serverStartupTimeoutMinutes) { $config.serverStartupTimeoutMinutes } else { 10 }
     }
@@ -545,7 +545,7 @@ function Monitor-SCUMServerStartup {
             $lastReportedStatus = $status.Status
         }
         
-        # Kontrola úspěšného startu
+        # Check successful startup
         if ($status.IsOnline -and $status.Status -eq "Online") {
             $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
             Write-Log "[SUCCESS] Server is truly ONLINE after $elapsedMinutes minutes! (Match State: InProgress)"
@@ -556,7 +556,7 @@ function Monitor-SCUMServerStartup {
             }
         }
         
-        # Kontrola crash/hang
+        # Check crash/hang
         if ($status.Status -in @("Crashed", "Hanging")) {
             $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
             Write-Log "[ERROR] Server startup failed after $elapsedMinutes minutes - Status: $($status.Status)"
@@ -568,7 +568,7 @@ function Monitor-SCUMServerStartup {
             }
         }
         
-        # Kontrola že služba stále běží
+        # Check that service is still running
         if (!(Check-ServiceRunning $serviceName)) {
             $elapsedMinutes = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
             Write-Log "[ERROR] Windows service stopped running during startup monitoring after $elapsedMinutes minutes"
@@ -731,7 +731,7 @@ function Update-Server {
             # Don't schedule delay, proceed with immediate update below
         } else {
             # Schedule delayed update with player notifications
-            if ($global:UpdateScheduledTime -eq $null) {
+            if ($null -eq $global:UpdateScheduledTime) {
                 $global:UpdateScheduledTime = (Get-Date).AddMinutes($updateDelayMinutes)
                 $global:UpdateWarning5Sent = $false
                 $global:UpdateAvailableNotificationSent = $false
@@ -902,13 +902,11 @@ function Poll-AdminCommands {
                     continue
                 }
                 
-                # Write-Log ("[DEBUG] Discord NEW msg: id={0}, content='{1}', authorId={2}, member={3}, roles={4}" -f $messageId, $content, $authorId, ($member | ConvertTo-Json -Compress), ($roles -join ', '))
-                
                 $isAllowed = $false
                 if ($roles -and ($roles | Where-Object { $roleIds -contains $_ })) {
                     $isAllowed = $true
                 } elseif (-not $roles) {
-                    # Pokud nejsou role, povolíme pro test všem (nebo zadejte svůj userId pro omezení)
+                    # If no roles, allow for testing (or specify your userId for restriction)
                     $isAllowed = $true
                 }
                 if ($isAllowed) {
@@ -925,12 +923,21 @@ function Poll-AdminCommands {
                             $global:ProcessedMessageIds.Remove($oldId)
                         }
                     }
+                    
+                    # Clean up old notification tracking (keep only last 100)
+                    if ($global:LastNotifications -and $global:LastNotifications.Count -gt 100) {
+                        $oldestNotifications = $global:LastNotifications.GetEnumerator() | 
+                                             Sort-Object Value | Select-Object -First 50 | ForEach-Object { $_.Key }
+                        foreach ($oldNotifKey in $oldestNotifications) {
+                            $global:LastNotifications.Remove($oldNotifKey)
+                        }
+                    }
                     # Process individual admin commands using configurable prefix
                     if ($content -like "${commandPrefix}server_restart*") {
                         # Parse delay parameter
                         $parts = $content -split '\s+'
                         $delayMinutes = 0
-                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0) {
+                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0 -and $delayMinutes -le 180) {
                             # Delayed restart
                             Write-Log "[ADMIN CMD] ${commandPrefix}server_restart $delayMinutes by $authorId"
                             $global:AdminRestartScheduledTime = (Get-Date).AddMinutes($delayMinutes)
@@ -969,7 +976,7 @@ function Poll-AdminCommands {
                         # Parse delay parameter
                         $parts = $content -split '\s+'
                         $delayMinutes = 0
-                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0) {
+                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0 -and $delayMinutes -le 180) {
                             # Delayed stop
                             Write-Log "[ADMIN CMD] ${commandPrefix}server_stop $delayMinutes by $authorId"
                             $global:AdminStopScheduledTime = (Get-Date).AddMinutes($delayMinutes)
@@ -1019,7 +1026,7 @@ function Poll-AdminCommands {
                         $delayMinutes = 0
                         $isDelayed = $false
                         
-                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0) {
+                        if ($parts.Length -gt 1 -and [int]::TryParse($parts[1], [ref]$delayMinutes) -and $delayMinutes -gt 0 -and $delayMinutes -le 180) {
                             $isDelayed = $true
                         }
                         
@@ -1076,14 +1083,14 @@ function Poll-AdminCommands {
                         Write-Log "[ADMIN CMD] ${commandPrefix}server_cancel_update by $authorId"
                         
                         $anyCancelled = $false
-                        if ($global:UpdateScheduledTime -ne $null) {
+                        if ($null -ne $global:UpdateScheduledTime) {
                             Write-Log "[INFO] Cancelling automatic scheduled update planned for $($global:UpdateScheduledTime.ToString('yyyy-MM-dd HH:mm:ss'))"
                             $global:UpdateScheduledTime = $null
                             $global:UpdateWarning5Sent = $false
                             $global:UpdateAvailableNotificationSent = $false
                             $anyCancelled = $true
                         }
-                        if ($global:AdminUpdateScheduledTime -ne $null) {
+                        if ($null -ne $global:AdminUpdateScheduledTime) {
                             Write-Log "[INFO] Cancelling admin scheduled update planned for $($global:AdminUpdateScheduledTime.ToString('yyyy-MM-dd HH:mm:ss'))"
                             $global:AdminUpdateScheduledTime = $null
                             $global:AdminUpdateWarning5Sent = $false
@@ -1374,7 +1381,7 @@ while ($true) {
     }
     
     # --- DELAYED UPDATE PROCESSING ---
-    if ($global:UpdateScheduledTime -ne $null) {
+    if ($null -ne $global:UpdateScheduledTime) {
         # Send 5-minute warning if not sent yet and delay is >= 5 minutes
         $warningMinutes = [Math]::Min(5, [Math]::Floor($updateDelayMinutes / 2))
         if ($updateDelayMinutes -gt 5 -and -not $global:UpdateWarning5Sent -and $now -ge $global:UpdateScheduledTime.AddMinutes(-$warningMinutes) -and $now -lt $global:UpdateScheduledTime.AddMinutes(-$warningMinutes).AddSeconds(30)) {
@@ -1397,7 +1404,7 @@ while ($true) {
     
     # --- ADMIN ACTION PROCESSING ---
     # Admin Restart
-    if ($global:AdminRestartScheduledTime -ne $null) {
+    if ($null -ne $global:AdminRestartScheduledTime) {
         $restartDelay = ($global:AdminRestartScheduledTime - $now).TotalMinutes
         $warningMinutes = [Math]::Min(5, [Math]::Floor($restartDelay / 2))
         
@@ -1438,7 +1445,7 @@ while ($true) {
     }
     
     # Admin Stop
-    if ($global:AdminStopScheduledTime -ne $null) {
+    if ($null -ne $global:AdminStopScheduledTime) {
         $stopDelay = ($global:AdminStopScheduledTime - $now).TotalMinutes
         $warningMinutes = [Math]::Min(5, [Math]::Floor($stopDelay / 2))
         
@@ -1468,7 +1475,7 @@ while ($true) {
     }
     
     # Admin Update
-    if ($global:AdminUpdateScheduledTime -ne $null) {
+    if ($null -ne $global:AdminUpdateScheduledTime) {
         $updateDelay = ($global:AdminUpdateScheduledTime - $now).TotalMinutes
         $warningMinutes = [Math]::Min(5, [Math]::Floor($updateDelay / 2))
         
@@ -1556,7 +1563,7 @@ while ($true) {
     }
     
     # --- PERIODIC BACKUP EXECUTION ---
-    if ($periodicBackupEnabled -and ($global:LastBackupTime -ne $null) -and ((Get-Date) - $global:LastBackupTime).TotalMinutes -ge $backupIntervalMinutes) {
+    if ($periodicBackupEnabled -and ($null -ne $global:LastBackupTime) -and ((Get-Date) - $global:LastBackupTime).TotalMinutes -ge $backupIntervalMinutes) {
         if (-not $updateOrRestart) {
             Write-Log "[INFO] Running periodic backup..."
             if (Backup-Saved) {
@@ -1569,8 +1576,8 @@ while ($true) {
     }
     
     # --- PERIODIC UPDATE CHECK ---
-    if ($global:LastUpdateCheck -eq $null -or ((Get-Date) - $global:LastUpdateCheck).TotalMinutes -ge $updateCheckIntervalMinutes) {
-        if (-not $updateOrRestart -and $global:UpdateScheduledTime -eq $null) {
+    if ($null -eq $global:LastUpdateCheck -or ((Get-Date) - $global:LastUpdateCheck).TotalMinutes -ge $updateCheckIntervalMinutes) {
+        if (-not $updateOrRestart -and $null -eq $global:UpdateScheduledTime) {
             Write-Log "[INFO] Running periodic update check..."
             $installedBuild = Get-InstalledBuildId
             $latestBuild = Get-LatestBuildId
@@ -1713,7 +1720,7 @@ while ($true) {
             }
             
             # Reset restart attempt counters when service is running normally
-            if ($global:ConsecutiveRestartAttempts -gt 0 -or $global:LastAutoRestartAttempt -ne $null) {
+            if ($global:ConsecutiveRestartAttempts -gt 0 -or $null -ne $global:LastAutoRestartAttempt) {
                 Write-Log "[INFO] Server running normally - resetting auto-restart counters"
                 $global:ConsecutiveRestartAttempts = 0
                 $global:LastAutoRestartAttempt = $null
@@ -1773,7 +1780,7 @@ function Get-CachedPlayerCount {
     $checkInterval = if ($config.playerCountCheckIntervalMinutes) { $config.playerCountCheckIntervalMinutes } else { 5 }
     
     $now = Get-Date
-    if ($global:LastPlayerCountCheck -eq $null -or ($now - $global:LastPlayerCountCheck).TotalMinutes -ge $checkInterval) {
+    if ($null -eq $global:LastPlayerCountCheck -or ($now - $global:LastPlayerCountCheck).TotalMinutes -ge $checkInterval) {
         $status = Get-SCUMServerStatus
         $global:CachedPlayerCount = $status.PlayerCount
         $global:LastPlayerCountCheck = $now
