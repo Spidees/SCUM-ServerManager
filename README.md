@@ -11,10 +11,9 @@ This project provides a complete automation solution for running SCUM dedicated 
 ✅ **Automated Backups** - Compressed backups with retention management  
 ✅ **Discord Integration** - Professional notifications and admin commands  
 ✅ **Crash Recovery** - Automatic server recovery with health monitoring  
-✅ **Performance Monitoring** - Real-time FPS tracking with configurable thresholds
 ✅ **Service Management** - Runs as Windows service via NSSM  
 ✅ **Configurable Notifications** - Enable/disable individual notification types  
-✅ **Comprehensive Logging** - Detailed logs with rotation and size management  
+✅ **Comprehensive Logging** - Detailed logs for troubleshooting  
 
 # 📁 Quick Setup Guide
 
@@ -37,26 +36,20 @@ Before starting, make sure you have:
 
 ### 2. Directory Structure
 
-Current project structure:
+Create this folder structure (recommended):
 
 ```
-📁 scum/
+📁 SCUM-Server/
 ├── 📄 SCUMServer.ps1              # Main automation script
 ├── 📄 SCUMServer.config.json      # Configuration file
 ├── 📄 startserver.bat             # Start automation
-├── 📄 stopserver.bat              # Stop automation
+├── 📄 stopserver.bat              # Stop automation  
 ├── 📄 nssm.exe                    # Service manager
-├── 📄 README.md                   # This documentation
-├── 📄 SCUMServer.log              # Log file (auto-created)
 ├── 📁 server/                     # SCUM server files
-│   ├── 📁 SCUM/                   # Main server folder
-│   │   ├── 📁 Binaries/Win64/     # Server executable
-│   │   ├── 📁 Saved/              # Save files
-│   │   └── 📁 Config/             # Server configuration
-│   └── 📁 steamapps/              # Steam manifest files
+│   └── 📁 SCUM/Binaries/Win64/    # Server executable location
 ├── 📁 steamcmd/                   # SteamCMD installation
 │   └── 📄 steamcmd.exe
-└── 📁 backups/                    # Automatic backups (auto-created)
+└── 📁 backups/                    # Automatic backups (created automatically)
 ```
 
 ### 3. Setup Instructions
@@ -148,35 +141,14 @@ The automation is fully controlled via `SCUMServer.config.json`. Here's how to c
   "steamCmd": "./steamcmd/steamcmd.exe", // SteamCMD path
   "serverDir": "./server",               // Server installation
   "appId": "3792580",                    // SCUM Steam App ID
-  
-  // Schedule & Timing Settings
   "restartTimes": ["02:00", "14:00", "20:00"], // Daily restart schedule
   "backupIntervalMinutes": 60,           // How often to backup
   "updateCheckIntervalMinutes": 10,      // Update check frequency
   "updateDelayMinutes": 15,              // Update delay when server running
-  
-  // Backup Settings
   "maxBackups": 10,                      // Backup retention count
   "compressBackups": true,               // Compress backup files
-  "periodicBackupEnabled": true,         // Enable automatic backups
-  "runBackupOnStart": false,             // Backup on script start
-  "runUpdateOnStart": true,              // Check updates on start
-  
-  // Performance & Stability
-  "autoRestartCooldownMinutes": 2,       // Cooldown between restart attempts
-  "maxConsecutiveRestartAttempts": 3,    // Max restart attempts before giving up
-  "serverStartupTimeoutMinutes": 10,     // How long to wait for server startup
-  "fpsAlertThreshold": 15,               // FPS threshold for alerts
-  "fpsWarningThreshold": 20,             // FPS threshold for warnings
-  
-  // Performance Thresholds (FPS Categories)
-  "performanceThresholds": {
-    "excellent": 30,                     // Excellent performance >= 30 FPS
-    "good": 20,                          // Good performance >= 20 FPS  
-    "fair": 15,                          // Fair performance >= 15 FPS
-    "poor": 10,                          // Poor performance >= 10 FPS
-    "critical": 0                        // Critical performance < 10 FPS
-  }
+  "runBackupOnStart": true,              // Backup on script start
+  "runUpdateOnStart": true               // Check updates on start
 }
 ```
 
@@ -318,7 +290,6 @@ Control your server directly from Discord! Send these commands in your configure
 | `!server_stop` | Stop server immediately | `!server_stop` |
 | `!server_stop [min]` | Schedule stop with warnings | `!server_stop 10` |  
 | `!server_start` | Start stopped server | `!server_start` |
-| `!server_status` | Get detailed server status report | `!server_status` |
 
 ### 📥 Update Commands
 
@@ -436,49 +407,6 @@ When server is empty or stopped:
 - **Real-time status**: Continuous server health monitoring
 - **Performance logging**: Resource usage and uptime tracking
 - **Predictive alerts**: Early warning for potential issues
-- **FPS monitoring**: Real-time FPS tracking with configurable thresholds
-- **SCUM log analysis**: Deep analysis of server logs for status detection
-- **Player count tracking**: Monitor player activity and server population
-
-## 📊 Performance Monitoring System
-
-### Real-time FPS Tracking
-The automation continuously monitors server performance by analyzing SCUM server logs:
-
-- **Automatic FPS detection**: Parses Global Stats from SCUM.log
-- **Performance categorization**: Classifies performance into 5 levels
-- **Configurable thresholds**: Customize FPS thresholds for your hardware
-- **Performance alerts**: Automatic notifications when FPS drops below thresholds
-- **Status reporting**: Include performance data in admin status reports
-
-### Performance Categories
-
-| Category | Default FPS Threshold | Description |
-|----------|----------------------|-------------|
-| **Excellent** | ≥ 30 FPS | Optimal performance |
-| **Good** | ≥ 20 FPS | Good performance |
-| **Fair** | ≥ 15 FPS | Acceptable performance |
-| **Poor** | ≥ 10 FPS | Performance issues detected |
-| **Critical** | < 10 FPS | Severe performance problems |
-
-### Performance Configuration
-
-Configure thresholds in `SCUMServer.config.json`:
-
-```json
-{
-  "performanceThresholds": {
-    "excellent": 30,    // Adjust based on your server hardware
-    "good": 20,         // Higher values = stricter requirements
-    "fair": 15,         // Lower values = more lenient
-    "poor": 10,
-    "critical": 0
-  },
-  "fpsAlertThreshold": 15,      // Send alerts when FPS drops below this
-  "fpsWarningThreshold": 20,    // Send warnings when FPS drops below this
-  "performanceLogIntervalMinutes": 5  // How often to log performance
-}
-```
 
 ## 📊 Professional Notification System
 
@@ -512,15 +440,7 @@ Every server action automatically triggers appropriate notifications:
   "restartTimes": ["06:00", "18:00"],      // Twice daily
   "updateDelayMinutes": 5,                 // Short delays
   "backupIntervalMinutes": 30,             // Frequent backups
-  "maxBackups": 20,                        // More backup retention
-  "performanceThresholds": {               // More lenient for smaller servers
-    "excellent": 25,
-    "good": 18,
-    "fair": 12,
-    "poor": 8,
-    "critical": 0
-  },
-  "fpsAlertThreshold": 12                  // Lower alert threshold
+  "maxBackups": 20                         // More backup retention
 }
 ```
 
@@ -530,15 +450,7 @@ Every server action automatically triggers appropriate notifications:
   "restartTimes": ["04:00", "16:00"],      // Off-peak hours
   "updateDelayMinutes": 30,                // Longer warnings
   "backupIntervalMinutes": 60,             // Standard backups
-  "maxBackups": 10,                        // Storage efficiency
-  "performanceThresholds": {               // Stricter for performance servers
-    "excellent": 35,
-    "good": 25,
-    "fair": 20,
-    "poor": 15,
-    "critical": 0
-  },
-  "fpsAlertThreshold": 20                  // Higher alert threshold
+  "maxBackups": 10                         // Storage efficiency
 }
 ```
 
@@ -555,9 +467,6 @@ Every server action automatically triggers appropriate notifications:
 - **Schedule restarts** during low-activity periods
 - **Monitor backup sizes** and adjust retention accordingly
 - **Test update delays** with your community
-- **Adjust FPS thresholds** based on your server hardware capabilities
-- **Monitor performance logs** to identify optimal threshold settings
-- **Use performance alerts** to proactively address server issues
 
 ### Security Considerations
 - **Limit admin roles** to trusted community members only
@@ -571,38 +480,29 @@ Every server action automatically triggers appropriate notifications:
 
 | Problem | Likely Cause | Solution |
 |---------|--------------|----------|
-| **Notifications not sending** | Bot token or channel ID incorrect | Verify Discord configuration and check logs |
-| **"Get-ServerPerformanceStats not recognized"** | Script corruption or incomplete load | Restart PowerShell and reload script |
-| **Server won't start** | NSSM service misconfigured | Check NSSM settings and server paths |
-| **Updates failing** | SteamCMD permissions issue | Run as Administrator, check steamcmd path |
-| **Backups not working** | Insufficient disk space or permissions | Check available storage and folder permissions |
-| **Commands ignored** | Missing role permissions | Verify Discord role IDs in config |
-| **Performance monitoring not working** | SCUM.log not accessible | Check savedDir path and log file permissions |
-| **"Critical performance" false alerts** | FPS thresholds too high for hardware | Adjust performanceThresholds in config |
+| **Notifications not sending** | Bot token or channel ID incorrect | Verify Discord configuration |
+| **Server won't start** | NSSM service misconfigured | Check NSSM settings and paths |
+| **Updates failing** | SteamCMD permissions issue | Run as Administrator |
+| **Backups not working** | Insufficient disk space | Check available storage |
+| **Commands ignored** | Missing role permissions | Verify Discord role IDs |
 
 ## 📋 Maintenance Checklist
 
 ### Daily
-- [ ] Check `SCUMServer.log` for errors and performance alerts
+- [ ] Check `SCUMServer.log` for errors
 - [ ] Verify backup files are being created
 - [ ] Monitor Discord notifications
-- [ ] Review performance status reports
-- [ ] Check for any critical FPS alerts
 
 ### Weekly  
 - [ ] Test admin commands functionality
 - [ ] Review backup retention (delete old backups manually if needed)
-- [ ] Check server performance metrics and trends
-- [ ] Verify Discord bot permissions and connectivity
-- [ ] Review and adjust FPS thresholds if needed
+- [ ] Check server performance metrics
 
 ### Monthly
 - [ ] Update SCUM server manually to latest version
 - [ ] Review and optimize restart schedule
 - [ ] Test disaster recovery procedures
 - [ ] Update Discord bot permissions if needed
-- [ ] Analyze performance logs for optimization opportunities
-- [ ] Review and update notification templates if needed
 
 ---
 
@@ -613,28 +513,19 @@ Every server action automatically triggers appropriate notifications:
 All automation activity is logged to `SCUMServer.log` with timestamps:
 
 ```
-2025-06-27 16:04:02 [INFO] Starting main server monitoring loop...
-2025-06-27 16:04:02 [PERFORMANCE] FPS: 5 avg, Frame: 199.8ms, Players: 0, Status: Critical
-2025-06-27 16:04:02 [INFO] Server performance status changed:  -> Critical
-2025-06-27 16:04:02 [ALERT] Critical performance detected! FPS: 5 avg, Frame: 199.8ms, Players: 0, Status: Critical
-2025-06-27 16:04:02 [ALERT] Very low FPS detected: 5 avg (threshold: 15)
+2025-06-25 10:30:15 [INFO] Starting SCUM Server automation...
+2025-06-25 10:30:16 [INFO] Backup created: ./backups/Saved_BACKUP_20250625_103015.zip
+2025-06-25 10:30:45 [INFO] Bot notification sent: Server Started
+2025-06-25 10:35:22 [INFO] Admin command received: !server_backup from <@123456789>
 ```
-
-### Log Features
-- **Automatic log rotation**: When logs exceed configured size limit
-- **Performance tracking**: Real-time FPS and frame time logging
-- **Server state changes**: Detailed logging of all server status transitions
-- **Admin command audit**: All Discord commands logged with user IDs
-- **Error tracking**: Comprehensive error logging with stack traces
 
 ## 🔄 Backup System Features
 
 - **Automatic compression** with configurable retention
-- **Incremental cleanup** - old backups auto-deleted based on `maxBackups` setting
+- **Incremental cleanup** - old backups auto-deleted
 - **Pre-update backups** - automatic backup before every update
 - **Manual backup command** - `!server_backup` for instant backups
 - **Integrity verification** - backup success/failure notifications
-- **Smart backup timing** - backups only when server is stable
 
 ## ⚡ Performance Features
 
@@ -642,17 +533,6 @@ All automation activity is logged to `SCUMServer.log` with timestamps:
 - **Non-blocking operations** - server performance unaffected
 - **Intelligent scheduling** - operations during low-activity periods
 - **Crash recovery** - automatic restart without manual intervention
-- **Smart update detection** - compares Steam build IDs for accurate update detection
-- **SCUM log parsing** - deep analysis of server logs for status and performance data
-
-## 🛡️ Stability & Recovery Features
-
-- **Intelligent crash detection** - distinguishes between crashes and intentional stops
-- **Restart cooldown system** - prevents restart loops with configurable delays
-- **Maximum restart attempts** - stops trying after configured number of failed attempts
-- **Intentional stop detection** - analyzes Windows event logs and SCUM logs
-- **Service health monitoring** - continuously monitors Windows service status
-- **Startup timeout handling** - fails gracefully if server doesn't start within timeout
 
 ---
 
