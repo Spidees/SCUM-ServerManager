@@ -1199,7 +1199,9 @@ function Poll-AdminCommands {
                             # Delayed restart
                             Write-Log "[ADMIN CMD] ${commandPrefix}server_restart $delayMinutes by $authorId"
                             $global:AdminRestartScheduledTime = (Get-Date).AddMinutes($delayMinutes)
+                            $global:AdminRestartWarning10Sent = $false
                             $global:AdminRestartWarning5Sent = $false
+                            $global:AdminRestartWarning1Sent = $false
                             
                             $delayText = " in $delayMinutes minutes"
                             Send-Notification admin "adminRestart" @{ admin = $authorId; delay = $delayText }
@@ -1239,7 +1241,9 @@ function Poll-AdminCommands {
                             # Delayed stop
                             Write-Log "[ADMIN CMD] ${commandPrefix}server_stop $delayMinutes by $authorId"
                             $global:AdminStopScheduledTime = (Get-Date).AddMinutes($delayMinutes)
+                            $global:AdminStopWarning10Sent = $false
                             $global:AdminStopWarning5Sent = $false
+                            $global:AdminStopWarning1Sent = $false
                             
                             Send-Notification admin "adminStop" @{ admin = $authorId }
                             Send-Notification player "adminStopWarning" @{ delayMinutes = $delayMinutes }
@@ -1349,13 +1353,17 @@ function Poll-AdminCommands {
                             if ($isDelayed) {
                                 # Use custom delay
                                 $global:AdminUpdateScheduledTime = (Get-Date).AddMinutes($delayMinutes)
+                                $global:AdminUpdateWarning10Sent = $false
                                 $global:AdminUpdateWarning5Sent = $false
+                                $global:AdminUpdateWarning1Sent = $false
                                 $delayText = " in $delayMinutes minutes"
                                 Send-Notification player "adminUpdateWarning" @{ delayMinutes = $delayMinutes }
                             } else {
                                 # Use default delay
                                 $global:AdminUpdateScheduledTime = (Get-Date).AddMinutes($updateDelayMinutes)
+                                $global:AdminUpdateWarning10Sent = $false
                                 $global:AdminUpdateWarning5Sent = $false
+                                $global:AdminUpdateWarning1Sent = $false
                                 $delayText = " in $updateDelayMinutes minutes"
                                 Send-Notification player "adminUpdateWarning" @{ delayMinutes = $updateDelayMinutes }
                             }
@@ -1373,7 +1381,9 @@ function Poll-AdminCommands {
                         $global:UpdateWarning5Sent = $false
                         $global:UpdateAvailableNotificationSent = $false
                         $global:AdminUpdateScheduledTime = $null
+                        $global:AdminUpdateWarning10Sent = $false
                         $global:AdminUpdateWarning5Sent = $false
+                        $global:AdminUpdateWarning1Sent = $false
                         
                         if (Execute-ImmediateUpdate) {
                             Write-Log "[INFO] Admin-requested immediate update completed successfully."
@@ -1497,11 +1507,17 @@ $global:LastDiscordAPICall = $null
 
 # Track scheduled admin actions
 $global:AdminRestartScheduledTime = $null
+$global:AdminRestartWarning10Sent = $false
 $global:AdminRestartWarning5Sent = $false
+$global:AdminRestartWarning1Sent = $false
 $global:AdminStopScheduledTime = $null
+$global:AdminStopWarning10Sent = $false
 $global:AdminStopWarning5Sent = $false
+$global:AdminStopWarning1Sent = $false
 $global:AdminUpdateScheduledTime = $null
+$global:AdminUpdateWarning10Sent = $false
 $global:AdminUpdateWarning5Sent = $false
+$global:AdminUpdateWarning1Sent = $false
 
 # Track auto-restart attempts to prevent spam
 $global:LastAutoRestartAttempt = $null
@@ -1703,15 +1719,29 @@ try {
         # Check if server is running
         $serverRunning = Check-ServiceRunning $serviceName
     
-    # Admin Restart
+    # Admin Restart with progressive warnings (10, 5, 1 minute)
     if ($null -ne $global:AdminRestartScheduledTime) {
         $restartDelay = ($global:AdminRestartScheduledTime - $now).TotalMinutes
-        $warningMinutes = [Math]::Min(5, [Math]::Floor($restartDelay / 2))
         
-        if ($restartDelay -gt 5 -and -not $global:AdminRestartWarning5Sent -and $now -ge $global:AdminRestartScheduledTime.AddMinutes(-$warningMinutes) -and $now -lt $global:AdminRestartScheduledTime.AddMinutes(-$warningMinutes).AddSeconds(30)) {
-            Send-Notification player "adminRestartWarning5" @{ warningMinutes = $warningMinutes }
-            Write-Log ("[INFO] Sent admin restart {0}-minute warning at {1}" -f $warningMinutes, $now.ToString('HH:mm:ss'))
+        # 10-minute warning
+        if ($restartDelay -le 10.5 -and $restartDelay -gt 9.5 -and -not $global:AdminRestartWarning10Sent) {
+            Send-Notification player "adminRestartWarning" @{ delayMinutes = 10 }
+            Write-Log "[INFO] Sent admin restart 10-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminRestartWarning10Sent = $true
+        }
+        
+        # 5-minute warning
+        if ($restartDelay -le 5.5 -and $restartDelay -gt 4.5 -and -not $global:AdminRestartWarning5Sent) {
+            Send-Notification player "adminRestartWarning" @{ delayMinutes = 5 }
+            Write-Log "[INFO] Sent admin restart 5-minute warning at $($now.ToString('HH:mm:ss'))"
             $global:AdminRestartWarning5Sent = $true
+        }
+        
+        # 1-minute warning
+        if ($restartDelay -le 1.5 -and $restartDelay -gt 0.5 -and -not $global:AdminRestartWarning1Sent) {
+            Send-Notification player "adminRestartWarning" @{ delayMinutes = 1 }
+            Write-Log "[INFO] Sent admin restart 1-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminRestartWarning1Sent = $true
         }
         
         if ($now -ge $global:AdminRestartScheduledTime) {
@@ -1741,20 +1771,36 @@ try {
             
             # Clear scheduling
             $global:AdminRestartScheduledTime = $null
+            $global:AdminRestartWarning10Sent = $false
             $global:AdminRestartWarning5Sent = $false
+            $global:AdminRestartWarning1Sent = $false
             $updateOrRestart = $true
         }
     }
     
-    # Admin Stop
+    # Admin Stop with progressive warnings (10, 5, 1 minute)
     if ($null -ne $global:AdminStopScheduledTime) {
         $stopDelay = ($global:AdminStopScheduledTime - $now).TotalMinutes
-        $warningMinutes = [Math]::Min(5, [Math]::Floor($stopDelay / 2))
         
-        if ($stopDelay -gt 5 -and -not $global:AdminStopWarning5Sent -and $now -ge $global:AdminStopScheduledTime.AddMinutes(-$warningMinutes) -and $now -lt $global:AdminStopScheduledTime.AddMinutes(-$warningMinutes).AddSeconds(30)) {
-            Send-Notification player "adminStopWarning5" @{ warningMinutes = $warningMinutes }
-            Write-Log ("[INFO] Sent admin stop {0}-minute warning at {1}" -f $warningMinutes, $now.ToString('HH:mm:ss'))
+        # 10-minute warning
+        if ($stopDelay -le 10.5 -and $stopDelay -gt 9.5 -and -not $global:AdminStopWarning10Sent) {
+            Send-Notification player "adminStopWarning" @{ delayMinutes = 10 }
+            Write-Log "[INFO] Sent admin stop 10-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminStopWarning10Sent = $true
+        }
+        
+        # 5-minute warning
+        if ($stopDelay -le 5.5 -and $stopDelay -gt 4.5 -and -not $global:AdminStopWarning5Sent) {
+            Send-Notification player "adminStopWarning" @{ delayMinutes = 5 }
+            Write-Log "[INFO] Sent admin stop 5-minute warning at $($now.ToString('HH:mm:ss'))"
             $global:AdminStopWarning5Sent = $true
+        }
+        
+        # 1-minute warning
+        if ($stopDelay -le 1.5 -and $stopDelay -gt 0.5 -and -not $global:AdminStopWarning1Sent) {
+            Send-Notification player "adminStopWarning" @{ delayMinutes = 1 }
+            Write-Log "[INFO] Sent admin stop 1-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminStopWarning1Sent = $true
         }
         
         if ($now -ge $global:AdminStopScheduledTime) {
@@ -1785,19 +1831,35 @@ try {
             
             # Clear scheduling
             $global:AdminStopScheduledTime = $null
+            $global:AdminStopWarning10Sent = $false
             $global:AdminStopWarning5Sent = $false
+            $global:AdminStopWarning1Sent = $false
         }
     }
     
-    # Admin Update
+    # Admin Update with progressive warnings (10, 5, 1 minute)
     if ($null -ne $global:AdminUpdateScheduledTime) {
         $updateDelay = ($global:AdminUpdateScheduledTime - $now).TotalMinutes
-        $warningMinutes = [Math]::Min(5, [Math]::Floor($updateDelay / 2))
         
-        if ($updateDelay -gt 5 -and -not $global:AdminUpdateWarning5Sent -and $now -ge $global:AdminUpdateScheduledTime.AddMinutes(-$warningMinutes) -and $now -lt $global:AdminUpdateScheduledTime.AddMinutes(-$warningMinutes).AddSeconds(30)) {
-            Send-Notification player "adminUpdateWarning5" @{ warningMinutes = $warningMinutes }
-            Write-Log ("[INFO] Sent admin update {0}-minute warning at {1}" -f $warningMinutes, $now.ToString('HH:mm:ss'))
+        # 10-minute warning
+        if ($updateDelay -le 10.5 -and $updateDelay -gt 9.5 -and -not $global:AdminUpdateWarning10Sent) {
+            Send-Notification player "adminUpdateWarning" @{ delayMinutes = 10 }
+            Write-Log "[INFO] Sent admin update 10-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminUpdateWarning10Sent = $true
+        }
+        
+        # 5-minute warning
+        if ($updateDelay -le 5.5 -and $updateDelay -gt 4.5 -and -not $global:AdminUpdateWarning5Sent) {
+            Send-Notification player "adminUpdateWarning" @{ delayMinutes = 5 }
+            Write-Log "[INFO] Sent admin update 5-minute warning at $($now.ToString('HH:mm:ss'))"
             $global:AdminUpdateWarning5Sent = $true
+        }
+        
+        # 1-minute warning
+        if ($updateDelay -le 1.5 -and $updateDelay -gt 0.5 -and -not $global:AdminUpdateWarning1Sent) {
+            Send-Notification player "adminUpdateWarning" @{ delayMinutes = 1 }
+            Write-Log "[INFO] Sent admin update 1-minute warning at $($now.ToString('HH:mm:ss'))"
+            $global:AdminUpdateWarning1Sent = $true
         }
         
         if ($now -ge $global:AdminUpdateScheduledTime) {
@@ -1813,7 +1875,9 @@ try {
             
             # Clear scheduling
             $global:AdminUpdateScheduledTime = $null
+            $global:AdminUpdateWarning10Sent = $false
             $global:AdminUpdateWarning5Sent = $false
+            $global:AdminUpdateWarning1Sent = $false
         }
     }
     
