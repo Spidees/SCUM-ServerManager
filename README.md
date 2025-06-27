@@ -46,9 +46,9 @@ Current project structure:
 ├── 📄 startserver.bat             # Start automation
 ├── 📄 stopserver.bat              # Stop automation
 ├── 📄 nssm.exe                    # Service manager
-├── � README.md                   # This documentation
+├── 📄 README.md                   # This documentation
 ├── 📄 SCUMServer.log              # Log file (auto-created)
-├── �📁 server/                     # SCUM server files
+├── 📁 server/                     # SCUM server files
 │   ├── 📁 SCUM/                   # Main server folder
 │   │   ├── 📁 Binaries/Win64/     # Server executable
 │   │   ├── 📁 Saved/              # Save files
