@@ -1,4 +1,6 @@
 {
+  "_comment": "SCUM Server Automation - SCUM Dedicated Server Management for Windows",
+  
   "serviceName": "SCUMSERVER",
   "backupRoot": "./backups",
   "savedDir": "./server/SCUM/Saved",
@@ -6,95 +8,420 @@
   "serverDir": "./server",
   "appId": "3792580",
   "botToken": "",
+  
   "admin_notification": {
     "method": "bot",
     "webhooks": [""],
     "channelIds": [""],
-    "roleIds": [""] ,
+    "roleIds": [""],
     "messages": {
-      "backupCreated": { "title": "Backup Created", "text": "A new backup was created and compressed: {path}", "color": 3447003, "enabled": true },
-      "backupError": { "title": "Backup Error", "text": "Backup failed!", "color": 15158332, "enabled": true },
-      "updateAvailable": { "title": "Update Available", "text": "A new update is available! Installed: {installed}, Latest: {latest}", "color": 15844367, "enabled": true },
-      "updateSuccess": { "title": "Update Successful", "text": "The server was updated successfully.", "color": 3066993, "enabled": true },
-      "updateError": { "title": "Update Error", "text": "Server update failed! Error: {error}", "color": 15158332, "enabled": true },
-      "serverStarted": { "title": "Server Started", "text": "The SCUM server has started. Reason: {reason}", "color": 3066993, "enabled": true },
-      "serverStopped": { "title": "Server Stopped", "text": "The SCUM server has stopped. Reason: {reason}", "color": 15105570, "enabled": true },
-      "serverCrashed": { "title": "Server Crashed", "text": "The server crashed and was restarted. Reason: {reason}", "color": 15158332, "enabled": true },
-      "otherEvent": { "title": "Admin Event", "text": "{event}", "color": 10181046, "enabled": true },
-      "managerStarted": { "title": "Manager Started", "text": "SCUM Server Manager script has started successfully.", "color": 3447003, "enabled": true },
-      "firstInstall": { "title": "First Install", "text": "Server files or manifest not found, performing first install/update.", "color": 3447003, "enabled": true },
-      "firstInstallComplete": { "title": "First Install Complete", "text": "Server files installed and service started.", "color": 3066993, "enabled": true },
-      "installError": { "title": "Install Error", "text": "The server service failed to start after first install!", "color": 15158332, "enabled": true },
-      "installFailed": { "title": "Install Failed", "text": "First install/update failed. Exit code: {exitCode}", "color": 15158332, "enabled": true },
-      "updateWarning": { "title": "Update Warning", "text": "{warning}", "color": 15844367, "enabled": true },
-      "updateFailed": { "title": "Update Failed", "text": "Server update failed. Exit code: {exitCode}", "color": 15158332, "enabled": true },
-      "scheduledRestart": { "title": "SCUM Scheduled Restart", "text": "Restarting server...", "color": 15844367, "enabled": true },
-      "serverRunning": { "title": "SCUM Restarted", "text": "Server restarted after scheduled restart.", "color": 3066993, "enabled": true },
-      "restartError": { "title": "Restart Error", "text": "Server service failed to start after scheduled restart!", "color": 15158332, "enabled": true },
-      "startError": { "title": "Start Error", "text": "The SCUM server service failed to start after backup and update check!", "color": 15158332, "enabled": true },
-      "serverAutoRestarted": { "title": "Auto-Restart", "text": "Server service auto-restarted after crash.", "color": 3066993, "enabled": true },
-      "autoRestartError": { "title": "Auto-Restart Error", "text": "The SCUM server service failed to auto-restart after a crash!", "color": 15158332, "enabled": true },
-      "backupWarning": { "title": "Backup Warning", "text": "The Saved folder was not found, backup was skipped.", "color": 15844367, "enabled": true },
-      "updateSuccessful": { "title": "Update Successful", "text": "The server was updated successfully.", "color": 3066993, "enabled": true },
-      "adminRestart": { "title": "Admin Restart", "text": "Admin {admin} initiated server restart{delay}", "color": 15844367, "enabled": true },
-      "adminStop": { "title": "Admin Stop", "text": "Admin {admin} stopped the server", "color": 15105570, "enabled": true },
-      "adminStart": { "title": "Admin Start", "text": "Admin {admin} started the server", "color": 3066993, "enabled": true },
-      "adminBackup": { "title": "Admin Backup", "text": "Admin {admin} initiated manual backup", "color": 3447003, "enabled": true },
-      "adminUpdate": { "title": "Admin Update", "text": "Admin {admin} initiated server update{delay}", "color": 15844367, "enabled": true },
-      "adminUpdateResult": { "title": "Admin Update Result", "text": "Admin-initiated update {result}. Server status: {status}", "color": 3066993, "enabled": false },
-      "adminRestartResult": { "title": "Admin Restart Result", "text": "Admin-initiated restart {result}. Server status: {status}", "color": 3066993, "enabled": false },
-      "adminStartResult": { "title": "Admin Start Result", "text": "Admin start command {result}. Server status: {status}", "color": 3066993, "enabled": false },
-      "adminStopResult": { "title": "Admin Stop Result", "text": "Admin stop command executed. Server status: {status}", "color": 15105570, "enabled": false },
-      "scheduledRestartResult": { "title": "Scheduled Restart Result", "text": "Scheduled restart {result}. Server status: {status}", "color": 3066993, "enabled": false },
-      "autoUpdateResult": { "title": "Auto Update Result", "text": "Automatic update {result}. Server status: {status}", "color": 3066993, "enabled": false },
-      "serverStatusUpdate": { "title": "Server Status", "text": "Server is now {status}. Reason: {reason}", "color": 3066993, "enabled": false },
-      "updateInProgress": { "title": "Update In Progress", "text": "Server update is being installed. Reason: {reason}", "color": 15844367, "enabled": true },
-      "serverRestarted": { "title": "Server Restarted", "text": "Server has been restarted. Reason: {reason}", "color": 15844367, "enabled": true }
+      "_comment_server_states": "=== Core Server State Notifications ===",
+      "serverOnline": { 
+        "title": "Server Online", 
+        "text": "SCUM server is online and ready! ({playerCount} players online) - {reason}", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "serverOffline": { 
+        "title": "Server Offline", 
+        "text": "SCUM server is offline - {reason}", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "serverStarting": { 
+        "title": "Server Starting", 
+        "text": "SCUM server is starting up... - {reason}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "serverLoading": { 
+        "title": "Server Loading", 
+        "text": "SCUM server is loading world and initializing... - {reason}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "serverRestarting": { 
+        "title": "Server Restarting", 
+        "text": "SCUM server is restarting - {reason}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "serverCrashed": { 
+        "title": "Server Crashed", 
+        "text": "SCUM server crashed during operation! - {reason}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "serverHanging": { 
+        "title": "Server Hanging", 
+        "text": "SCUM server appears to be hanging (no activity detected) - {reason}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_system": "=== System & Manager Events ===",
+      "managerStarted": { 
+        "title": "Manager Started", 
+        "text": "SCUM Server Manager script has started successfully.", 
+        "color": 3447003, 
+        "enabled": true 
+      },
+
+      "_comment_updates": "=== Update System ===",
+      "updateAvailable": { 
+        "title": "Update Available", 
+        "text": "A new update is available! Installed: {installed}, Latest: {latest}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "updateInProgress": { 
+        "title": "Update In Progress", 
+        "text": "Server update is being installed. Reason: {reason}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "updateSuccess": { 
+        "title": "Update Successful", 
+        "text": "The server was updated successfully.", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "updateError": { 
+        "title": "Update Error", 
+        "text": "Server update failed! Error: {error}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "updateWarning": { 
+        "title": "Update Warning", 
+        "text": "{warning}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "updateFailed": { 
+        "title": "Update Failed", 
+        "text": "Server update failed. Exit code: {exitCode}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_backup": "=== Backup System ===",
+      "backupCreated": { 
+        "title": "Backup Created", 
+        "text": "A new backup was created and compressed: {path}", 
+        "color": 3447003, 
+        "enabled": true 
+      },
+      "backupError": { 
+        "title": "Backup Error", 
+        "text": "Backup failed!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "backupWarning": { 
+        "title": "Backup Warning", 
+        "text": "The Saved folder was not found, backup was skipped.", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+
+      "_comment_install": "=== Installation & Setup ===",
+      "firstInstall": { 
+        "title": "First Install", 
+        "text": "Server files or manifest not found, performing first install/update.", 
+        "color": 3447003, 
+        "enabled": true 
+      },
+      "firstInstallComplete": { 
+        "title": "First Install Complete", 
+        "text": "Server files installed and service started.", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "installError": { 
+        "title": "Install Error", 
+        "text": "The server service failed to start after first install!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "installFailed": { 
+        "title": "Install Failed", 
+        "text": "First install/update failed. Exit code: {exitCode}", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_scheduled": "=== Scheduled Operations ===",
+      "scheduledRestart": { 
+        "title": "Scheduled Restart", 
+        "text": "Performing scheduled server restart...", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "restartError": { 
+        "title": "Restart Error", 
+        "text": "Server service failed to start after scheduled restart!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "autoRestartError": { 
+        "title": "Auto-Restart Error", 
+        "text": "The SCUM server failed to auto-restart after {attempts} attempts: {error}. Manual intervention required.", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_admin": "=== Admin Commands ===",
+      "adminRestart": { 
+        "title": "Admin Restart", 
+        "text": "Admin {admin} initiated server restart{delay}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "adminStop": { 
+        "title": "Admin Stop", 
+        "text": "Admin {admin} stopped the server", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "adminStart": { 
+        "title": "Admin Start", 
+        "text": "Admin {admin} started the server", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "adminBackup": { 
+        "title": "Admin Backup", 
+        "text": "Admin {admin} initiated manual backup", 
+        "color": 3447003, 
+        "enabled": true 
+      },
+      "adminUpdate": { 
+        "title": "Admin Update", 
+        "text": "Admin {admin} initiated server update{delay}", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+
+      "_comment_generic": "=== Generic Events ===",
+      "otherEvent": { 
+        "title": "Admin Event", 
+        "text": "{event}", 
+        "color": 10181046, 
+        "enabled": true 
+      }
     }
   },
+  
   "player_notification": {
     "method": "bot",
     "webhooks": [""],
     "channelIds": [""],
-    "roleIds": [""] ,
+    "roleIds": [""],
     "messages": {
-      "restartWarning15": { "title": "Scheduled Restart", "text": "Server will restart in 15 minutes!", "color": 15844367, "enabled": true },
-      "restartWarning5": { "title": "Scheduled Restart", "text": "Server will restart in 5 minutes!", "color": 15844367, "enabled": true },
-      "restartWarning1": { "title": "Scheduled Restart", "text": "Server will restart in 60 seconds!", "color": 15105570, "enabled": true },
-      "restartNow": { "title": "Scheduled Restart", "text": "Server is restarting now!", "color": 15158332, "enabled": true },
-      "serverOnline": { "title": "Server Online", "text": "Server is back online!", "color": 3066993, "enabled": false },
-      "updateAvailable": { "title": "Update Available", "text": "A new server update is available! Server will be updated and restarted in {delayMinutes} minutes.", "color": 15844367, "enabled": true },
-      "updateWarning5": { "title": "Update Warning", "text": "Server update will start in {warningMinutes} minutes! Server will restart for the update.", "color": 15105570, "enabled": true },
-      "updateStarting": { "title": "Update Starting", "text": "Server is restarting now to install the update...", "color": 15158332, "enabled": true },
-      "updateCompleted": { "title": "Update Completed", "text": "Server update completed successfully! Server is back online.", "color": 3066993, "enabled": true },
-      "adminRestartWarning": { "title": "Admin Restart", "text": "Admin initiated restart in {delayMinutes} minutes!", "color": 15844367, "enabled": true },
-      "adminRestartWarning5": { "title": "Admin Restart", "text": "Admin restart will start in {warningMinutes} minutes!", "color": 15105570, "enabled": true },
-      "adminRestartNow": { "title": "Admin Restart", "text": "Server is restarting now by admin command!", "color": 15158332, "enabled": true },
-      "adminStopWarning": { "title": "Admin Stop", "text": "Server will be stopped in {delayMinutes} minutes by admin!", "color": 15105570, "enabled": true },
-      "adminStopWarning5": { "title": "Admin Stop", "text": "Server will be stopped in {warningMinutes} minutes by admin!", "color": 15105570, "enabled": true },
-      "adminStopNow": { "title": "Admin Stop", "text": "Server is being stopped now by admin command!", "color": 15158332, "enabled": true },
-      "adminStartNow": { "title": "Admin Start", "text": "Server is being started now by admin command!", "color": 3066993, "enabled": true },
-      "adminUpdateWarning": { "title": "Admin Update", "text": "Admin initiated update in {delayMinutes} minutes!", "color": 15844367, "enabled": true },
-      "adminUpdateWarning5": { "title": "Admin Update", "text": "Admin update will start in {warningMinutes} minutes!", "color": 15105570, "enabled": true },
-      "adminUpdateNow": { "title": "Admin Update", "text": "Server is restarting now for admin-initiated update!", "color": 15158332, "enabled": true },
-      "serverStarted": { "title": "Server Started", "text": "Server is now online! Reason: {reason}", "color": 3066993, "enabled": true },
-      "serverStopped": { "title": "Server Stopped", "text": "Server has been stopped. Reason: {reason}", "color": 15105570, "enabled": true },
-      "serverRestarted": { "title": "Server Restarted", "text": "Server has been restarted. Reason: {reason}", "color": 15844367, "enabled": true },
-      "updateInProgress": { "title": "Update In Progress", "text": "Server update is being installed. Reason: {reason}", "color": 15844367, "enabled": true },
-      "serverCrashed": { "title": "Server Crashed", "text": "The server crashed and was restarted. Reason: {reason}", "color": 15158332, "enabled": true }
+      "_comment_server_states": "=== Server State Changes (Player-Friendly) ===",
+      "serverOnline": { 
+        "title": "🟢 Server Online", 
+        "text": "Server is back online! ({playerCount} players)", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "serverOffline": { 
+        "title": "🔴 Server Offline", 
+        "text": "SCUM server is currently offline.", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "serverStarting": { 
+        "title": "🟡 Server Starting", 
+        "text": "SCUM server is starting up... Please wait.", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "serverLoading": { 
+        "title": "🟡 Server Loading", 
+        "text": "SCUM server is loading world... Almost ready!", 
+        "color": 15844367, 
+        "enabled": false 
+      },
+      "serverRestarting": { 
+        "title": "🔄 Server Restarting", 
+        "text": "Server is restarting. Will be back online shortly!", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "serverCrashed": { 
+        "title": "⚠️ Server Issue", 
+        "text": "SCUM server experienced an issue and is being restarted.", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "serverHanging": { 
+        "title": "⚠️ Server Issue", 
+        "text": "SCUM server is experiencing issues and may restart soon.", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_scheduled": "=== Scheduled Restart Warnings ===",
+      "restartWarning15": { 
+        "title": "⏰ Scheduled Restart", 
+        "text": "Server will restart in 15 minutes!", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "restartWarning5": { 
+        "title": "⏰ Scheduled Restart", 
+        "text": "Server will restart in 5 minutes!", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "restartWarning1": { 
+        "title": "⚠️ Scheduled Restart", 
+        "text": "Server will restart in 60 seconds!", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "restartNow": { 
+        "title": "🔄 Scheduled Restart", 
+        "text": "Server is restarting now!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+
+      "_comment_updates": "=== Update Notifications ===",
+      "updateAvailable": { 
+        "title": "📦 Update Available", 
+        "text": "A new server update is available! Server will be updated and restarted in {delayMinutes} minutes.", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "updateWarning5": { 
+        "title": "⏰ Update Warning", 
+        "text": "Server update will start in {warningMinutes} minutes! Server will restart for the update.", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "updateStarting": { 
+        "title": "📦 Update Starting", 
+        "text": "Server is restarting now to install the update...", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "updateCompleted": { 
+        "title": "✅ Update Completed", 
+        "text": "Server update completed successfully! Server is back online.", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "updateInProgress": { 
+        "title": "📦 Update In Progress", 
+        "text": "Server update is being installed. Please wait...", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+
+      "_comment_admin": "=== Admin Actions ===",
+      "adminRestartWarning": { 
+        "title": "👮 Admin Restart", 
+        "text": "Admin initiated restart in {delayMinutes} minutes!", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "adminRestartWarning5": { 
+        "title": "⏰ Admin Restart", 
+        "text": "Admin restart will start in {warningMinutes} minutes!", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "adminRestartNow": { 
+        "title": "🔄 Admin Restart", 
+        "text": "Server is restarting now by admin!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "adminStopWarning": { 
+        "title": "👮 Admin Stop", 
+        "text": "Server will be stopped in {delayMinutes} minutes by admin!", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "adminStopWarning5": { 
+        "title": "⏰ Admin Stop", 
+        "text": "Server will be stopped in {warningMinutes} minutes by admin!", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "adminStopNow": { 
+        "title": "🛑 Admin Stop", 
+        "text": "Server is being stopped now by admin!", 
+        "color": 15158332, 
+        "enabled": true 
+      },
+      "adminStartNow": { 
+        "title": "▶️ Admin Start", 
+        "text": "Server is being started now by admin!", 
+        "color": 3066993, 
+        "enabled": true 
+      },
+      "adminUpdateWarning": { 
+        "title": "👮 Admin Update", 
+        "text": "Admin initiated update in {delayMinutes} minutes!", 
+        "color": 15844367, 
+        "enabled": true 
+      },
+      "adminUpdateWarning5": { 
+        "title": "⏰ Admin Update", 
+        "text": "Admin update will start in {warningMinutes} minutes!", 
+        "color": 15105570, 
+        "enabled": true 
+      },
+      "adminUpdateNow": { 
+        "title": "📦 Admin Update", 
+        "text": "Server is restarting now for admin-initiated update!", 
+        "color": 15158332, 
+        "enabled": true 
+      }
     }
   },
+  
   "admin_command_channel": {
     "channelIds": [""],
     "roleIds": [""],
     "commandPrefix": "!"
   },
+  
+  "_comment_settings": "=== Server Management Settings ===",
   "restartTimes": ["02:00", "14:00", "20:00"],
   "backupIntervalMinutes": 60,
+  "periodicBackupEnabled": true,
   "updateCheckIntervalMinutes": 10,
   "updateDelayMinutes": 15,
   "maxBackups": 10,
   "compressBackups": true,
-  "runBackupOnStart": true,
-  "runUpdateOnStart": true
+  "runBackupOnStart": false,
+  "runUpdateOnStart": true,
+  
+  "_comment_antispam": "=== Anti-Spam & Stability Settings ===",
+  "autoRestartCooldownMinutes": 2,
+  "maxConsecutiveRestartAttempts": 3,
+  "serverStartupTimeoutMinutes": 10,
+  "serverShutdownTimeoutMinutes": 5,
+  "logAnalysisMaxLines": 1000,
+  "playerCountCheckIntervalMinutes": 5,
+  
+  "_comment_notifications": "=== Notification Behavior Settings ===",
+  "suppressDuplicateNotifications": true,
+  "suppressNotificationsDuringMaintenance": false,
+  "notificationRateLimitMinutes": 1,
+  "adminNotificationAlways": true,
+  "playerNotificationMinimumPlayers": 0,
+  
+  "_comment_security": "=== Security & Performance Settings ===",
+  "enableDetailedLogging": true,
+  "enablePerformanceMonitoring": false,
+  "maxLogFileSizeMB": 100,
+  "logRotationEnabled": true,
+  "enableCrashDumpCollection": false,
+  "allowEmergencyCommands": true
 }
