@@ -35,6 +35,12 @@ $playerNotification = $config.player_notification
 $adminCommandChannel = $config.admin_command_channel
 $botToken = $config.botToken
 
+# Set script scope variables for function access
+$script:botToken = $config.botToken
+$script:adminNotification = $config.admin_notification
+$script:playerNotification = $config.player_notification
+$script:adminCommandChannel = $config.admin_command_channel
+
 # Get command prefix from config (default to "!" if not set)
 $commandPrefix = if ($adminCommandChannel.commandPrefix) { $adminCommandChannel.commandPrefix } else { "!" }
 
@@ -98,11 +104,14 @@ function Send-Notification {
     $global:LastNotifications[$notificationKey] = $now
     
     # Get notification config section
-    $section = if ($type -eq 'admin') { $adminNotification } else { $playerNotification }
+    $section = if ($type -eq 'admin') { $script:adminNotification } else { $script:playerNotification }
     $method = $section.method
     $messages = $section.messages
     $msgObj = $messages.$messageKey
     if (-not $msgObj) { Write-Log "[WARN] Message template $messageKey not found for $type"; return }
+    
+    # Debug logging
+    Write-Log "[DEBUG] Send-Notification: type=$type, messageKey=$messageKey, method=$method, botToken exists: $($script:botToken -ne $null -and $script:botToken -ne ''), section.channelIds: $($section.channelIds -join ',')"
     
     # Check if notification is enabled
     if ($msgObj.enabled -eq $false) { 
@@ -112,24 +121,39 @@ function Send-Notification {
     $title = $msgObj.title
     $msg = $msgObj.text
     $color = $msgObj.color
-    # Replace template variables
-    foreach ($k in $vars.Keys) { $msg = $msg -replace "\{$k\}", [string]$vars[$k] }
+    # Replace template variables with safe string conversion and proper escaping
+    foreach ($k in $vars.Keys) { 
+        $value = [string]$vars[$k]
+        # Escape special JSON characters and problematic characters
+        $value = $value -replace '"', '\"'         # Escape double quotes
+        $value = $value -replace '\\', '\\'        # Escape backslashes
+        $value = $value -replace "`n", '\n'        # Escape newlines
+        $value = $value -replace "`r", '\r'        # Escape carriage returns
+        $value = $value -replace "`t", '\t'        # Escape tabs
+        # Replace problematic Unicode characters that might cause issues
+        $value = $value -replace '•', '*'          # Replace bullet points with asterisks
+        $value = $value -replace '[^\x00-\x7F]', '?'  # Replace non-ASCII characters with ?
+        $msg = $msg -replace "\{$k\}", $value 
+    }
     
-    # Build Discord embed
+    # Build Discord embed with safe values only
     $embed = @{ description = $msg }
-    if ($title) { $embed.title = $title }
-    if ($color) { $embed.color = $color }
-    $embed.footer = @{ text = "SCUM Server Automation | $(Get-Date -Format 'HH:mm:ss yyyy-MM-dd')"; icon_url = "https://playhub.cz/scum/manager/server_automation_discord.png" }
+    if ($title -and $title -ne "") { $embed.title = $title }
+    if ($color -and [int]$color -gt 0) { $embed.color = [int]$color }
+    
+    # Add footer with safe timestamp
+    $timestamp = Get-Date -Format 'HH:mm:ss yyyy-MM-dd'
+    $embed.footer = @{ text = "SCUM Server Automation | $timestamp" }
     # Prepare role mentions
     $content = ""
     $roleIdArr = $null
     if ($type -eq 'admin') {
-        if ($adminNotification -and $adminNotification.roleIds) {
-            $roleIdArr = $adminNotification.roleIds | Where-Object { $_ -and $_ -ne '' }
+        if ($script:adminNotification -and $script:adminNotification.roleIds) {
+            $roleIdArr = $script:adminNotification.roleIds | Where-Object { $_ -and $_ -ne '' }
         }
     } elseif ($type -eq 'player') {
-        if ($playerNotification -and $playerNotification.roleIds) {
-            $roleIdArr = $playerNotification.roleIds | Where-Object { $_ -and $_ -ne '' }
+        if ($script:playerNotification -and $script:playerNotification.roleIds) {
+            $roleIdArr = $script:playerNotification.roleIds | Where-Object { $_ -and $_ -ne '' }
         }
     }
     if ($roleIdArr -and $roleIdArr.Count -gt 0) {
@@ -154,40 +178,51 @@ function Send-Notification {
         }
     } elseif ($method -eq 'bot') {
         $channelIds = $section.channelIds
-        if ($botToken -and $channelIds) {
+        # Use script scope variables to ensure they're available
+        $scriptBotToken = $script:botToken
+        if (-not $scriptBotToken) { $scriptBotToken = $global:botToken }
+        if (-not $scriptBotToken) { $scriptBotToken = $config.botToken }
+        
+        Write-Log "[DEBUG] Bot notification check: scriptBotToken exists: $($scriptBotToken -ne $null -and $scriptBotToken -ne ''), channelIds count: $($channelIds.Count)"
+        
+        if ($scriptBotToken -and $channelIds -and $channelIds.Count -gt 0) {
             foreach ($channelId in $channelIds) {
                 if ($channelId -and $channelId -ne "") {
                     try {
                         $uri = "https://discord.com/api/v10/channels/$channelId/messages"
                         $headers = @{ 
-                            Authorization = "Bot $botToken"
+                            Authorization = "Bot $scriptBotToken"
                             "User-Agent" = "SCUM-Server-Manager/1.0"
                         }
                         
-                        # Send simple fallback first, then embed
-                        $simpleBody = @{ content = "[BOT] **$title** - $msg" }
-                        if ($content -ne "") { $simpleBody.content = "$content`n$($simpleBody.content)" }
+                        # Prepare safe embed body
+                        $body = @{ embeds = @($embed) }
+                        if ($content -ne "") { $body.content = $content }
                         
-                        # Try embed, use simple message on error
+                        # Convert to JSON with proper error handling
                         try {
-                            $body = @{ embeds = @($embed) }
-                            if ($content -ne "") { $body.content = $content }
-                            $bodyJson = $body | ConvertTo-Json -Depth 4
+                            $bodyJson = $body | ConvertTo-Json -Depth 4 -Compress
+                            # Validate JSON by trying to parse it back
+                            $null = $bodyJson | ConvertFrom-Json
+                            
                             $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Post -ContentType 'application/json' -Body $bodyJson -ErrorAction Stop
                             Write-Log ("[INFO] Bot embed notification sent to channel {0}: {1}" -f $channelId, $msg)
                         } catch {
-                            # Fallback to simple message
-                            $simpleBodyJson = $simpleBody | ConvertTo-Json -Depth 2
+                            # Fallback to simple message if embed fails
+                            $simpleBody = @{ content = "**$title** - $msg" }
+                            if ($content -ne "") { $simpleBody.content = "$content`n$($simpleBody.content)" }
+                            
+                            $simpleBodyJson = $simpleBody | ConvertTo-Json -Depth 2 -Compress
                             $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Post -ContentType 'application/json' -Body $simpleBodyJson -ErrorAction Stop
                             Write-Log ("[INFO] Bot simple notification sent to channel {0}: {1}" -f $channelId, $msg)
                         }
                     } catch {
-                        Write-Log ("[ERROR] Bot notification failed for channel {0}: {1}" -f $channelId, $_)
+                        Write-Log ("[ERROR] Bot notification failed for channel {0}: {1}" -f $channelId, $_.Exception.Message)
                     }
                 }
             }
         } else {
-            Write-Log "[ERROR] Bot notification config missing botToken or channelIds."
+            Write-Log "[ERROR] Bot notification config missing botToken or channelIds. scriptBotToken exists: $($scriptBotToken -ne $null -and $scriptBotToken -ne ''), channelIds count: $($channelIds.Count)"
         }
     } else {
         Write-Log "[ERROR] Unknown notification method: $method"
@@ -1261,15 +1296,15 @@ function Poll-AdminCommands {
                         
                         $statusReport = @"
 **Server Status Report:**
-• SCUM Server Status: $($serverStatus.Status) ($($serverStatus.Phase))
-• Windows Service: $(if ($serviceRunning) { "RUNNING" } else { "STOPPED" })
-• Players Online: $($serverStatus.PlayerCount)
-• Last Activity: $($serverStatus.LastActivity)
-• Intentionally Stopped: $intentionallyStopped
-• Auto-restart Attempts: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)
-• Minutes Since Last Attempt: $timeSinceLastAttempt
-• Cooldown Period: $($global:AutoRestartCooldownMinutes) minutes
-• Performance Thresholds: Excellent >=$($performanceThresholds.excellent)fps, Good >=$($performanceThresholds.good)fps, Fair >=$($performanceThresholds.fair)fps, Poor >=$($performanceThresholds.poor)fps
+* SCUM Server Status: $($serverStatus.Status) ($($serverStatus.Phase))
+* Windows Service: $(if ($serviceRunning) { "RUNNING" } else { "STOPPED" })
+* Players Online: $($serverStatus.PlayerCount)
+* Last Activity: $($serverStatus.LastActivity)
+* Intentionally Stopped: $intentionallyStopped
+* Auto-restart Attempts: $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)
+* Minutes Since Last Attempt: $timeSinceLastAttempt
+* Cooldown Period: $($global:AutoRestartCooldownMinutes) minutes
+* Performance Thresholds: Excellent >=$($performanceThresholds.excellent)fps, Good >=$($performanceThresholds.good)fps, Fair >=$($performanceThresholds.fair)fps, Poor >=$($performanceThresholds.poor)fps
 "@
                         Send-Notification admin "otherEvent" @{ event = $statusReport }
                     }
