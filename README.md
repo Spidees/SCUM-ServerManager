@@ -225,7 +225,7 @@ The NSSM GUI will open. Configure each tab as follows:
 
 ### 🛑 Shutdown Tab
 - **Shutdown method:** `Generate Ctrl+C`
-- **Timeouts:** `300000 ms` for all fields
+- **Timeouts:** `300000 ms` for first field
 - ✅ **Terminate process**
 
 ### 🔄 Exit Actions Tab
