@@ -9,7 +9,7 @@ if %errorLevel% neq 0 (
 )
 
 :: Run the PowerShell script with ExecutionPolicy Bypass and save PID
-powershell -ExecutionPolicy Bypass -Command "& { $process = Start-Process powershell -ArgumentList '-ExecutionPolicy', 'Bypass', '-File', '%~dp0SCUMServer.ps1' -PassThru; $process.Id | Out-File '%~dp0scum_automation.pid' -Encoding ascii }"
+powershell -ExecutionPolicy Bypass -Command "& { $process = Start-Process powershell -ArgumentList '-ExecutionPolicy', 'Bypass', '-File', '%~dp0SCUM-Server-Automation.ps1' -PassThru; $process.Id | Out-File '%~dp0scum_automation.pid' -Encoding ascii }"
 
 echo PowerShell automation script started.
 echo Use stopserver.bat to stop the automation.
