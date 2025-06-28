@@ -74,15 +74,7 @@ Current project structure:
 ### 3. Setup Instructions
 
 1. **Extract NSSM** and place `nssm.exe` in the root folder
-2. **Copy the automation files** (`SCUM-Server-Automation.ps1`, `SCUM-Server-Automation.config.json`, `*.bat`) to the root folder
-3. **Run `startserver.bat`** or launch the script manually (see below)
-4. **On first run:**
-   - The script will automatically download and extract SteamCMD if missing
-   - All required directories are created automatically
-   - SCUM server files are downloaded via SteamCMD (no manual installation needed)
-   - After successful install, the script exits and relaunches itself via `startserver.bat` (if present), or starts the server directly
-
-> 📝 **Note**: The automation script detects if SteamCMD or SCUM server files are missing and downloads them as needed. You don't need to manually install SteamCMD or the server—just run the script!
+2. **Copy the automation files** (`SCUM-Server-Automation.ps1`, `SCUM-Server-Automation.config.json`, `*.bat` and folder `modules`) to the root folder
 
 # 🔧 NSSM Service Configuration
 
@@ -127,11 +119,8 @@ The NSSM GUI will open. Configure each tab as follows:
 - ✅ **srvany compatible exit code**
 - **Restart delay**: `3000 ms`
 
-### 3. Install and Test
-1. Click **"Install service"**
-2. Test manually: `net start SCUMSERVER`
-3. Verify in Windows Services that it starts correctly
-4. Stop it: `net stop SCUMSERVER`
+### 3. Install
+- Click **"Install service"**
 
 > ⚠️ **Important**: The automation script will control the service - don't set it to "Automatic" startup!
 
@@ -147,6 +136,15 @@ For visual reference, here are the NSSM configuration screenshots:
 | **Process** | ![Process Tab](https://playhub.cz/scum/manager/nssm3.png) |
 | **Shutdown** | ![Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png) |
 | **Exit Actions** | ![Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png) |
+
+3. **Run `startserver.bat`** or launch the script manually (see below)
+4. **On first run:**
+   - The script will automatically download and extract SteamCMD if missing
+   - All required directories are created automatically
+   - SCUM server files are downloaded via SteamCMD (no manual installation needed)
+   - After successful install, the script exits and relaunches itself via `startserver.bat` (if present), or starts the server directly
+
+> 📝 **Note**: The automation script detects if SteamCMD or SCUM server files are missing and downloads them as needed. You don't need to manually install SteamCMD or the server—just run the script!
 
 # ⚙️ Configuration
 
@@ -202,24 +200,6 @@ All settings are in `SCUM-Server-Automation.config.json`. Key fields:
 
 > **Note:** All Discord fields must use empty arrays (`[]`) if not used. The script handles missing/empty arrays gracefully.
 
-# 🔔 Discord Integration
-
-All notifications and admin commands are handled exclusively via a **Discord bot** (requires bot token). Webhooks are not supported.
-
-- **Bot method:** Full functionality – admin commands, role/channel security, rich notifications
-
-**Admin commands** (via Discord):
-- `!server_restart [min]` – Restart server (immediate or delayed)
-- `!server_stop [min]` – Stop server (immediate or delayed)
-- `!server_start` – Start server
-- `!server_status` – Status report
-- `!server_update [min]` – Smart update (delayed if running)
-- `!server_update_now` – Force update
-- `!server_cancel_update` – Cancel update
-- `!server_backup` – Manual backup
-
-> **Security:** Only users with configured roles in allowed channels can use commands. All actions are logged.
-
 # 🔔 Discord Integration Setup
 
 ### Option 1: Discord Bot (Recommended)
@@ -246,6 +226,24 @@ All notifications and admin commands are handled exclusively via a **Discord bot
    - Test admin commands in Discord
 
 > **Note:** Bot permissions are crucial for functionality. Adjust channel permissions to allow bot actions.
+
+# 🔔 Discord Integration
+
+All notifications and admin commands are handled exclusively via a **Discord bot** (requires bot token). Webhooks are not supported.
+
+- **Bot method:** Full functionality – admin commands, role/channel security, rich notifications
+
+**Admin commands** (via Discord):
+- `!server_restart [min]` – Restart server (immediate or delayed)
+- `!server_stop [min]` – Stop server (immediate or delayed)
+- `!server_start` – Start server
+- `!server_status` – Status report
+- `!server_update [min]` – Smart update (delayed if running)
+- `!server_update_now` – Force update
+- `!server_cancel_update` – Cancel update
+- `!server_backup` – Manual backup
+
+> **Security:** Only users with configured roles in allowed channels can use commands. All actions are logged.
 
 # 🔄 Update & Backup Logic
 
