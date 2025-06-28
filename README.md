@@ -86,26 +86,67 @@ Current project structure:
 
 # 🔧 NSSM Service Configuration
 
-For advanced users who want to run the SCUM server as a Windows service, NSSM (Non-Sucking Service Manager) is used. This allows the server to run in the background as a service, with automatic restart on failure.
+**NSSM (Non-Sucking Service Manager)** allows your SCUM server to run as a Windows service.
 
-## Installing NSSM
+### 1. Install Service
+Open **Command Prompt as Administrator** in your SCUM folder and run:
+```cmd
+nssm.exe install SCUMSERVER
+```
 
-1. Download NSSM from the [official website](https://nssm.cc/download).
-2. Extract `nssm.exe` to the SCUM Server Automation folder.
+### 2. Configure Service Settings
 
-## Configuring the Service
+The NSSM GUI will open. Configure each tab as follows:
 
-1. Open a Command Prompt as Administrator.
-2. Navigate to the SCUM Server Automation folder.
-3. Install the service:
+#### 📋 Application Tab
+- **Path**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64\SCUMServer.exe`
+- **Startup directory**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64`
+- **Arguments**: `-port=7777 -log` (adjust port as needed)
 
-   ```cmd
-   nssm install SCUMSERVER "C:\Path\To\scum\SCUM-Server-Automation.ps1"
-   ```
+#### ⚙️ Details Tab  
+- **Display name**: `SCUMSERVER`
+- **Description**: `SCUM Dedicated Server`
+- **Startup type**: `Manual` (automation will control it)
 
-4. Configure the service settings (recovery, log on, etc.) as desired.
+#### 🔐 Log On Tab
+- **Account**: `Local System account`
+- ✅ **Allow service to interact with desktop**
 
-> ⚠️ **Important**: Running as a service requires proper configuration of the NSSM service. Ensure that the script works correctly in the foreground before installing as a service.
+#### ⚡ Process Tab
+- **Priority class**: `Realtime`
+- ✅ **Console window**
+- **Processor affinity**: `All processors`
+
+#### 🛑 Shutdown Tab
+- **Shutdown method**: `Generate Ctrl+C`
+- **Kill processes in console session**: ✅
+- **Timeouts**: `300000 ms` for all fields
+
+#### 🔄 Exit Actions Tab
+- **On Exit**: `No action`
+- ✅ **srvany compatible exit code**
+- **Restart delay**: `3000 ms`
+
+### 3. Install and Test
+1. Click **"Install service"**
+2. Test manually: `net start SCUMSERVER`
+3. Verify in Windows Services that it starts correctly
+4. Stop it: `net stop SCUMSERVER`
+
+> ⚠️ **Important**: The automation script will control the service - don't set it to "Automatic" startup!
+
+### 📸 Visual Configuration Guide
+
+For visual reference, here are the NSSM configuration screenshots:
+
+| Tab | Screenshot |
+|-----|------------|
+| **Application** | ![Application Tab](https://playhub.cz/scum/manager/nssm1.png) |
+| **Details** | ![Details Tab](https://playhub.cz/scum/manager/nssm6.png) |
+| **Log On** | ![Log On Tab](https://playhub.cz/scum/manager/nssm2.png) |
+| **Process** | ![Process Tab](https://playhub.cz/scum/manager/nssm3.png) |
+| **Shutdown** | ![Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png) |
+| **Exit Actions** | ![Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png) |
 
 # ⚙️ Configuration
 
@@ -178,6 +219,51 @@ All notifications and admin commands are handled exclusively via a **Discord bot
 - `!server_backup` – Manual backup
 
 > **Security:** Only users with configured roles in allowed channels can use commands. All actions are logged.
+
+# 🔔 Discord Integration Setup
+
+### Option 1: Discord Bot (Recommended)
+
+**Why use a bot?** Better control, admin commands, and more reliable delivery.
+
+1. **Create Discord Bot**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create New Application → Bot tab → Create Bot
+   - Copy the **Bot Token**
+
+2. **Add Bot to Server**:
+   - In Bot tab, click **Reset Token** and copy it
+   - Go to OAuth2 → URL Generator
+   - Select scopes: `bot` and permissions: `View Channels`, `Send Messages`, `Manage Messages`, `Read Messages History`, `Mention Everyone`, `Use External Emojis`, `Add Reactions`, `Use Slash Commands`, `Use Embedded Activities`
+   - Use generated URL to add bot to your Discord server (permission 551903767616)
+
+3. **Configure Bot in Script**:
+   - Paste the **Bot Token** in `SCUM-Server-Automation.config.json`
+   - Set up admin notification and command channel IDs
+
+4. **Run the Script**:
+   - Start the script (`startserver.bat`)
+   - Test admin commands in Discord
+
+> **Note:** Bot permissions are crucial for functionality. Adjust channel permissions to allow bot actions.
+
+### Option 2: Webhook (Not Recommended)
+
+Webhooks are limited and less reliable for this automation. Use the bot method for full functionality.
+
+1. **Create Webhook**:
+   - In Discord, go to Server Settings → Integrations → Webhooks
+   - Create a Webhook, copy the URL
+
+2. **Configure Webhook in Script**:
+   - Paste the Webhook URL in `SCUM-Server-Automation.config.json`
+   - Set up admin notification channel ID
+
+3. **Run the Script**:
+   - Start the script (`startserver.bat`)
+   - Test notifications in Discord
+
+> **Limitations:** No admin commands, limited error handling, less secure.
 
 # 🔄 Update & Backup Logic
 
