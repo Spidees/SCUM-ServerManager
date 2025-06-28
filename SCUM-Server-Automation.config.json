@@ -72,7 +72,6 @@
   "admin_notification": {
     "enabled": true,
     "method": "bot",
-    "webhooks": [],
     "channelIds": [],
     "roleIds": [],
     "messages": {
@@ -371,7 +370,6 @@
   "player_notification": {
     "enabled": true,
     "method": "bot",
-    "webhooks": [],
     "channelIds": [],
     "roleIds": [],
     "messages": {

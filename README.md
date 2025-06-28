@@ -140,7 +140,7 @@ All settings are in `SCUM-Server-Automation.config.json`. Key fields:
     "poor": 10,
     "critical": 0
   },
-  // Discord/webhook config (see below)
+  // Discord config (see below)
   "botToken": "YOUR_BOT_TOKEN_HERE",
   "admin_notification": {
     "method": "bot",
@@ -159,14 +159,13 @@ All settings are in `SCUM-Server-Automation.config.json`. Key fields:
 }
 ```
 
-> **Note:** All Discord/webhook fields must use empty arrays (`[]`) if not used. The script handles missing/empty arrays gracefully.
+> **Note:** All Discord fields must use empty arrays (`[]`) if not used. The script handles missing/empty arrays gracefully.
 
 # 🔔 Discord Integration
 
-Supports both **bot** and **webhook** methods. All notification and command logic is robust to missing/empty arrays and config fields.
+All notifications and admin commands are handled exclusively via a **Discord bot** (requires bot token). Webhooks are not supported.
 
-- **Bot method:** Full admin commands, role/channel security, rich notifications
-- **Webhook method:** Simple notifications only (no commands)
+- **Bot method:** Full functionality – admin commands, role/channel security, rich notifications
 
 **Admin commands** (via Discord):
 - `!server_restart [min]` – Restart server (immediate or delayed)
@@ -229,7 +228,7 @@ Supports both **bot** and **webhook** methods. All notification and command logi
 
 - Always run as Administrator
 - Use `startserver.bat` for clean startup/restart logic
-- Configure Discord/webhook fields with empty arrays if not used
+- Configure Discord fields with empty arrays if not used
 - Monitor `SCUM-Server-Automation.log` for errors and status
 - Test Discord commands and notifications after setup
 - Adjust FPS/backup/restart settings for your community size and hardware
