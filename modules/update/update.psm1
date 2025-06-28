@@ -216,6 +216,8 @@ function Update-GameServer {
     Steam application ID
     .PARAMETER ServiceName
     Windows service name
+    .PARAMETER SkipServiceStart
+    If true, do not start the service or send related notifications after update (used for first install)
     #>
     param(
         [Parameter(Mandatory)]
@@ -228,20 +230,27 @@ function Update-GameServer {
         [string]$AppId,
         
         [Parameter(Mandatory)]
-        [string]$ServiceName
+        [string]$ServiceName,
+        
+        [Parameter()]
+        [bool]$SkipServiceStart = $false
     )
     
     Write-Log "[Update] Starting server update process"
     
     try {
-        # Check if service is running and stop it
-        if (Test-ServiceRunning $ServiceName) {
-            Write-Log "[Update] Stopping server service before update"
-            Stop-GameService -ServiceName $ServiceName -Reason "update"
-            Start-Sleep -Seconds 10
-        }
-        else {
-            Write-Log "[Update] Service is not running, proceeding with update"
+        if (-not $SkipServiceStart) {
+            # Check if service is running and stop it
+            if (Test-ServiceRunning $ServiceName) {
+                Write-Log "[Update] Stopping server service before update"
+                Stop-GameService -ServiceName $ServiceName -Reason "update"
+                Start-Sleep -Seconds 10
+            }
+            else {
+                Write-Log "[Update] Service is not running, proceeding with update"
+            }
+        } else {
+            Write-Log "[Update] Skipping service status checks due to SkipServiceStart flag"
         }
         
         # Resolve paths - use provided parameters directly
@@ -328,13 +337,17 @@ function Update-GameServer {
                 # Continue anyway as files might be organized differently
             }
             
-            # Start service after successful update
-            Write-Log "[Update] Starting server service after update"
-            Start-GameService -ServiceName $ServiceName -Context "update"
-            
-            # Send success notification with centralized path for build ID lookup
-            $newBuild = Get-InstalledBuildId -ServerDirectory $resolvedServerDir -AppId $AppId
-            Send-Notification admin "updateCompleted" @{ newBuild = $newBuild }
+            if (-not $SkipServiceStart) {
+                # Start service after successful update
+                Write-Log "[Update] Starting server service after update"
+                Start-GameService -ServiceName $ServiceName -Context "update"
+                
+                # Send success notification with centralized path for build ID lookup
+                $newBuild = Get-InstalledBuildId -ServerDirectory $resolvedServerDir -AppId $AppId
+                Send-Notification admin "updateCompleted" @{ newBuild = $newBuild }
+            } else {
+                Write-Log "[Update] Skipping service start and notifications due to SkipServiceStart flag"
+            }
             
             return @{ Success = $true; Error = $null }
         }

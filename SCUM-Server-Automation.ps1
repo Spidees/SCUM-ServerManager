@@ -350,22 +350,24 @@ if (!(Test-PathExists $manifestPath) -or !(Test-PathExists $serverDir)) {
         $steamCmd
     }
     
-    $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+    $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName -SkipServiceStart:$true
     
     if ($updateResult.Success) {
         Write-Log "[INFO] First install completed successfully"
-        Send-Notification admin "firstInstallCompleted" @{}
+        Send-Notification admin "firstInstallComplete" @{
+        }
         
         # After successful first install, restart the script instead of starting server
         Write-Log "[INFO] First install completed - restarting script to reload all functions"
-        Write-Log "[INFO] Exiting PowerShell and launching startserver.bat for proper restart"
+        Write-Log "[INFO] Exiting PowerShell"
         
         # Give a moment for notifications to be sent
         Start-Sleep -Seconds 2
         
         # Exit PowerShell after first install
-            Write-Log "[INFO] PowerShell exiting for restart after first install"
-            exit 0
+        Write-Log "[INFO] PowerShell exiting for restart after first install"
+        Read-Host "[INFO] Press Enter to exit..."
+        exit 0
     } else {
         Write-Log "[ERROR] First install failed: $($updateResult.Error)" -Level Error
         Send-Notification admin "firstInstallFailed" @{ error = $updateResult.Error }
