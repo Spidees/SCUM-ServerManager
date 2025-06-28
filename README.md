@@ -59,7 +59,16 @@ Current project structure:
 │   └── 📁 steamapps/                    # Steam manifest files
 ├── 📁 steamcmd/                         # SteamCMD installation (auto-created)
 │   └── 📄 steamcmd.exe                  # Downloaded automatically
-└── 📁 backups/                          # Automatic backups (auto-created)
+├── 📁 backups/                          # Automatic backups (auto-created)
+└── 📁 modules/                          # PowerShell modules (core logic)
+    ├── 📁 admincommands/                # Admin command handling
+    ├── 📁 backup/                       # Backup logic
+    ├── 📁 common/                       # Common utilities
+    ├── 📁 logreader/                    # Log reading/parsing
+    ├── 📁 monitoring/                   # Performance monitoring
+    ├── 📁 notifications/                # Discord notification logic
+    ├── 📁 service/                      # Service management
+    └── 📁 update/                       # Update logic
 ```
 
 ### 3. Setup Instructions
