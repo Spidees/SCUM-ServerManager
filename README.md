@@ -76,76 +76,6 @@ Current project structure:
 1. **Extract NSSM** and place `nssm.exe` in the root folder
 2. **Copy the automation files** (`SCUM-Server-Automation.ps1`, `SCUM-Server-Automation.config.json`, `*.bat` and folder `modules`) to the root folder
 
-# 🔧 NSSM Service Configuration
-
-**NSSM (Non-Sucking Service Manager)** allows your SCUM server to run as a Windows service.
-
-### 1. Install Service
-Open **Command Prompt as Administrator** in your SCUM folder and run:
-```cmd
-nssm.exe install SCUMSERVER
-```
-
-### 2. Configure Service Settings
-
-The NSSM GUI will open. Configure each tab as follows:
-
-#### 📋 Application Tab
-- **Path**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64\SCUMServer.exe`
-- **Startup directory**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64`
-- **Arguments**: `-port=7777 -log` (adjust port as needed)
-
-#### ⚙️ Details Tab  
-- **Display name**: `SCUMSERVER`
-- **Description**: `SCUM Dedicated Server`
-- **Startup type**: `Manual` (automation will control it)
-
-#### 🔐 Log On Tab
-- **Account**: `Local System account`
-- ✅ **Allow service to interact with desktop**
-
-#### ⚡ Process Tab
-- **Priority class**: `Realtime`
-- ✅ **Console window**
-- **Processor affinity**: `All processors`
-
-#### 🛑 Shutdown Tab
-- **Shutdown method**: `Generate Ctrl+C`
-- **Kill processes in console session**: ✅
-- **Timeouts**: `300000 ms` for all fields
-
-#### 🔄 Exit Actions Tab
-- **On Exit**: `No action`
-- ✅ **srvany compatible exit code**
-- **Restart delay**: `3000 ms`
-
-### 3. Install
-- Click **"Install service"**
-
-> ⚠️ **Important**: The automation script will control the service - don't set it to "Automatic" startup!
-
-### 📸 Visual Configuration Guide
-
-For visual reference, here are the NSSM configuration screenshots:
-
-| Tab | Screenshot |
-|-----|------------|
-| **Application** | ![Application Tab](https://playhub.cz/scum/manager/nssm1.png) |
-| **Details** | ![Details Tab](https://playhub.cz/scum/manager/nssm6.png) |
-| **Log On** | ![Log On Tab](https://playhub.cz/scum/manager/nssm2.png) |
-| **Process** | ![Process Tab](https://playhub.cz/scum/manager/nssm3.png) |
-| **Shutdown** | ![Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png) |
-| **Exit Actions** | ![Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png) |
-
-3. **Run `startserver.bat`** or launch the script manually (see below)
-4. **On first run:**
-   - The script will automatically download and extract SteamCMD if missing
-   - All required directories are created automatically
-   - SCUM server files are downloaded via SteamCMD (no manual installation needed)
-   - After successful install, the script exits and relaunches itself via `startserver.bat` (if present), or starts the server directly
-
-> 📝 **Note**: The automation script detects if SteamCMD or SCUM server files are missing and downloads them as needed. You don't need to manually install SteamCMD or the server—just run the script!
-
 # ⚙️ Configuration
 
 All settings are in `SCUM-Server-Automation.config.json`. Key fields:
@@ -227,6 +157,76 @@ All settings are in `SCUM-Server-Automation.config.json`. Key fields:
 
 > **Note:** Bot permissions are crucial for functionality. Adjust channel permissions to allow bot actions.
 
+3. **Run `startserver.bat`**
+4. **On first run:**
+   - The script will automatically download and extract SteamCMD if missing
+   - All required directories are created automatically
+   - SCUM server files are downloaded via SteamCMD (no manual installation needed)
+   - After successful install, the script exit itself
+
+> 📝 **Note**: The automation script detects if SteamCMD or SCUM server files are missing and downloads them as needed. You don't need to manually install SteamCMD or the server—just run the script!
+
+# 🔧 NSSM Service Configuration
+
+**NSSM (Non-Sucking Service Manager)** allows your SCUM server to run as a Windows service.
+
+### 1. Install Service
+Open **Command Prompt as Administrator** in your SCUM folder and run:
+```cmd
+nssm.exe install SCUMSERVER
+```
+
+### 2. Configure Service Settings
+
+The NSSM GUI will open. Configure each tab as follows:
+
+#### 📋 Application Tab
+- **Path**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64\SCUMServer.exe`
+- **Startup directory**: `C:\YourPath\SCUM-Server\server\SCUM\Binaries\Win64`
+- **Arguments**: `-port=7777 -log` (adjust port as needed)
+
+#### ⚙️ Details Tab  
+- **Display name**: `SCUMSERVER`
+- **Description**: `SCUM Dedicated Server`
+- **Startup type**: `Manual` (automation will control it)
+
+#### 🔐 Log On Tab
+- **Account**: `Local System account`
+- ✅ **Allow service to interact with desktop**
+
+#### ⚡ Process Tab
+- **Priority class**: `Realtime`
+- ✅ **Console window**
+- **Processor affinity**: `All processors`
+
+#### 🛑 Shutdown Tab
+- **Shutdown method**: `Generate Ctrl+C`
+- **Kill processes in console session**: ✅
+- **Timeouts**: `300000 ms` for all fields
+
+#### 🔄 Exit Actions Tab
+- **On Exit**: `No action`
+- ✅ **srvany compatible exit code**
+- **Restart delay**: `3000 ms`
+
+### 3. Install
+- Click **"Install service"**
+
+> ⚠️ **Important**: The automation script will control the service - don't set it to "Automatic" startup!
+
+### 📸 Visual Configuration Guide
+
+For visual reference, here are the NSSM configuration screenshots:
+
+| Tab | Screenshot |
+|-----|------------|
+| **Application** | ![Application Tab](https://playhub.cz/scum/manager/nssm1.png) |
+| **Details** | ![Details Tab](https://playhub.cz/scum/manager/nssm6.png) |
+| **Log On** | ![Log On Tab](https://playhub.cz/scum/manager/nssm2.png) |
+| **Process** | ![Process Tab](https://playhub.cz/scum/manager/nssm3.png) |
+| **Shutdown** | ![Shutdown Tab](https://playhub.cz/scum/manager/nssm4.png) |
+| **Exit Actions** | ![Exit Actions Tab](https://playhub.cz/scum/manager/nssm5.png) |
+
 # 🔔 Discord Integration
 
 All notifications and admin commands are handled exclusively via a **Discord bot** (requires bot token). Webhooks are not supported.
@@ -244,6 +244,8 @@ All notifications and admin commands are handled exclusively via a **Discord bot
 - `!server_backup` – Manual backup
 
 > **Security:** Only users with configured roles in allowed channels can use commands. All actions are logged.
+
+5. **Run `startserver.bat`**
 
 # 🔄 Update & Backup Logic
 
