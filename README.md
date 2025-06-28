@@ -247,24 +247,6 @@ All notifications and admin commands are handled exclusively via a **Discord bot
 
 > **Note:** Bot permissions are crucial for functionality. Adjust channel permissions to allow bot actions.
 
-### Option 2: Webhook (Not Recommended)
-
-Webhooks are limited and less reliable for this automation. Use the bot method for full functionality.
-
-1. **Create Webhook**:
-   - In Discord, go to Server Settings → Integrations → Webhooks
-   - Create a Webhook, copy the URL
-
-2. **Configure Webhook in Script**:
-   - Paste the Webhook URL in `SCUM-Server-Automation.config.json`
-   - Set up admin notification channel ID
-
-3. **Run the Script**:
-   - Start the script (`startserver.bat`)
-   - Test notifications in Discord
-
-> **Limitations:** No admin commands, limited error handling, less secure.
-
 # 🔄 Update & Backup Logic
 
 - **First install:**
