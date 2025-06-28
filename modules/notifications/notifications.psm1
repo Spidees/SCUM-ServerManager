@@ -178,12 +178,18 @@ function Send-DiscordMessage {
     Message content
     #>
     param(
-        [Parameter(Mandatory)]
-        [string[]]$ChannelIds,
+        [Parameter()]
+        [string[]]$ChannelIds = @(),
         
         [Parameter(Mandatory)]
         [string]$Message
     )
+    
+    # Check if any channels are configured
+    if (-not $ChannelIds -or $ChannelIds.Count -eq 0 -or ($ChannelIds.Count -eq 1 -and [string]::IsNullOrWhiteSpace($ChannelIds[0]))) {
+        Write-Log "[Notifications] No Discord channels configured - skipping message" -Level Warning
+        return
+    }
     
     if (-not $script:moduleConfig.botToken) {
         Write-Log "[Notifications] No bot token configured" -Level Warning
@@ -233,8 +239,8 @@ function Send-DiscordEmbed {
     Array of role IDs to mention
     #>
     param(
-        [Parameter(Mandatory)]
-        [string[]]$ChannelIds,
+        [Parameter()]
+        [string[]]$ChannelIds = @(),
         
         [Parameter(Mandatory)]
         [hashtable]$Embed,
@@ -242,6 +248,12 @@ function Send-DiscordEmbed {
         [Parameter()]
         [string[]]$RoleMentions = @()
     )
+    
+    # Check if any channels are configured
+    if (-not $ChannelIds -or $ChannelIds.Count -eq 0 -or ($ChannelIds.Count -eq 1 -and [string]::IsNullOrWhiteSpace($ChannelIds[0]))) {
+        Write-Log "[Notifications] No Discord channels configured - skipping embed" -Level Warning
+        return
+    }
     
     if (-not $script:moduleConfig.botToken) {
         Write-Log "[Notifications] No bot token configured" -Level Warning

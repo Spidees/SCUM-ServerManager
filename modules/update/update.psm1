@@ -244,27 +244,89 @@ function Update-GameServer {
             Write-Log "[Update] Service is not running, proceeding with update"
         }
         
-        # Resolve paths using centralized management
-        $resolvedSteamCmd = Get-ConfigPath "steamCmdPath" -ErrorAction SilentlyContinue
-        if (-not $resolvedSteamCmd) {
-            $resolvedSteamCmd = $SteamCmdPath
+        # Resolve paths - use provided parameters directly
+        $resolvedSteamCmd = $SteamCmdPath
+        $resolvedServerDir = $ServerDirectory
+        
+        # Ensure SteamCMD path includes the executable
+        if (-not $resolvedSteamCmd.EndsWith("steamcmd.exe")) {
+            $resolvedSteamCmd = Join-Path $resolvedSteamCmd "steamcmd.exe"
         }
         
-        $resolvedServerDir = Get-ConfigPath "serverDirectory" -ErrorAction SilentlyContinue
-        if (-not $resolvedServerDir) {
-            $resolvedServerDir = $ServerDirectory
+        # Convert to absolute paths
+        $resolvedSteamCmd = [System.IO.Path]::GetFullPath($resolvedSteamCmd)
+        $resolvedServerDir = [System.IO.Path]::GetFullPath($resolvedServerDir)
+        
+        # Verify SteamCMD exists
+        if (-not (Test-Path $resolvedSteamCmd)) {
+            throw "SteamCMD not found at: $resolvedSteamCmd"
         }
         
-        # Build SteamCMD command
-        $cmd = "`"$resolvedSteamCmd`" +force_install_dir `"$resolvedServerDir`" +login anonymous +app_update $AppId validate +quit"
+        Write-Log "[Update] SteamCMD path verified: $resolvedSteamCmd"
+        Write-Log "[Update] Server directory: $resolvedServerDir"
+        
+        # Create server directory if it doesn't exist
+        if (-not (Test-Path $resolvedServerDir)) {
+            New-Item -Path $resolvedServerDir -ItemType Directory -Force | Out-Null
+            Write-Log "[Update] Created server directory: $resolvedServerDir"
+        }
+        
+        # Build SteamCMD arguments (fix quoting for paths with spaces)
+        $steamCmdArgs = @(
+            "+force_install_dir"
+            $resolvedServerDir
+            "+login"
+            "anonymous"
+            "+app_update"
+            $AppId
+            "validate"
+            "+quit"
+        )
+        
         Write-Log "[Update] Executing SteamCMD update command"
+        Write-Log "[Update] SteamCMD: $resolvedSteamCmd"
+        Write-Log "[Update] Arguments: $($steamCmdArgs -join ' ')"
         
-        # Execute update
-        $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cmd -Wait -NoNewWindow -PassThru
-        $exitCode = $process.ExitCode
+        # Check if this is first run of SteamCMD (might need to accept EULA)
+        $steamCmdDir = Split-Path $resolvedSteamCmd -Parent
+        $steamCmdLogPath = Join-Path $steamCmdDir "logs"
+        if (-not (Test-Path $steamCmdLogPath)) {
+            Write-Log "[Update] First SteamCMD run detected, may take longer for initialization"
+        }
         
-        if ($exitCode -eq 0) {
-            Write-Log "[Update] Server update completed successfully"
+        # Execute update directly
+        try {
+            $process = Start-Process -FilePath $resolvedSteamCmd -ArgumentList $steamCmdArgs -Wait -NoNewWindow -PassThru -WorkingDirectory $steamCmdDir
+            $exitCode = $process.ExitCode
+        } catch {
+            Write-Log "[Update] Failed to start SteamCMD: $($_.Exception.Message)" -Level Error
+            throw "Failed to execute SteamCMD: $($_.Exception.Message)"
+        }
+        
+        if ($exitCode -eq 0 -or $exitCode -eq 7) {
+            if ($exitCode -eq 7) {
+                Write-Log "[Update] Server update completed with warnings (exit code 7)"
+            } else {
+                Write-Log "[Update] Server update completed successfully"
+            }
+            
+            # Verify installation by checking for server executable
+            $serverExecutables = @("SCUMServerEXE.exe", "SCUM_Server.exe", "SCUMServer.exe")
+            $serverFound = $false
+            
+            foreach ($exe in $serverExecutables) {
+                $exePath = Join-Path $resolvedServerDir $exe
+                if (Test-Path $exePath) {
+                    Write-Log "[Update] Server executable found: $exe"
+                    $serverFound = $true
+                    break
+                }
+            }
+            
+            if (-not $serverFound) {
+                Write-Log "[Update] Warning: No server executable found in installation directory" -Level Warning
+                # Continue anyway as files might be organized differently
+            }
             
             # Start service after successful update
             Write-Log "[Update] Starting server service after update"
@@ -274,15 +336,25 @@ function Update-GameServer {
             $newBuild = Get-InstalledBuildId -ServerDirectory $resolvedServerDir -AppId $AppId
             Send-Notification admin "updateCompleted" @{ newBuild = $newBuild }
             
-            return $true
+            return @{ Success = $true; Error = $null }
         }
         else {
             Write-Log "[Update] Server update failed with exit code: $exitCode" -Level Error
+            Write-Log "[Update] Common SteamCMD exit codes: 1=General error, 2=Invalid arguments, 5=Cannot write to directory, 6=Steam client not running, 7=Success with warnings" -Level Error
+            
+            # Check for common issues
+            if ($exitCode -eq 5) {
+                Write-Log "[Update] Exit code 5 suggests permission or disk space issues" -Level Error
+            } elseif ($exitCode -eq 2) {
+                Write-Log "[Update] Exit code 2 suggests invalid command arguments" -Level Error
+            } elseif ($exitCode -eq 7) {
+                Write-Log "[Update] Exit code 7 usually means success with warnings, but treating as error due to context" -Level Error
+            }
             
             # Send failure notification
             Send-Notification admin "updateFailed" @{ exitCode = $exitCode }
             
-            return $false
+            return @{ Success = $false; Error = "SteamCMD failed with exit code: $exitCode" }
         }
     }
     catch {
@@ -291,7 +363,7 @@ function Update-GameServer {
         # Send failure notification
         Send-Notification admin "updateFailed" @{ error = $_.Exception.Message }
         
-        return $false
+        return @{ Success = $false; Error = $_.Exception.Message }
     }
 }
 

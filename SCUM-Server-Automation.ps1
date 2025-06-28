@@ -54,7 +54,7 @@ try {
 }
 
 # --- INITIALIZE LOGGING ---
-$logPath = Join-Path $PSScriptRoot "SCUMServer.log"
+$logPath = Join-Path $PSScriptRoot "SCUM-Server-Automation.log"
 Initialize-CommonModule -Config $config -LogPath $logPath -RootPath $PSScriptRoot
 
 Write-Log "=== SCUM Server Manager - Modular Edition Started ==="
@@ -211,6 +211,13 @@ function Invoke-ImmediateUpdate {
     
     Write-Log "[UPDATE] Starting immediate update"
     
+    # Ensure SteamCMD path is directory format for Update-GameServer
+    $steamCmdDirectory = if ($SteamCmdPath -like "*steamcmd.exe") {
+        Split-Path $SteamCmdPath -Parent
+    } else {
+        $SteamCmdPath
+    }
+    
     # Create backup before update
     Write-Log "[UPDATE] Creating backup before update"
     $backupResult = Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups $maxBackups -CompressBackups $compressBackups
@@ -224,7 +231,7 @@ function Invoke-ImmediateUpdate {
         }
         
         # Perform update
-        $updateResult = Update-GameServer -SteamCmdPath $SteamCmdPath -ServerDirectory $ServerDirectory -AppId $AppId -ServiceName $ServiceName
+        $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $ServerDirectory -AppId $AppId -ServiceName $ServiceName
         
         if ($updateResult.Success) {
             Write-Log "[UPDATE] Server updated successfully"
@@ -247,13 +254,139 @@ function Invoke-ImmediateUpdate {
 $manifestPath = Join-Path $serverDir "steamapps/appmanifest_$appId.acf"
 $firstInstall = $false
 
+# Initialize SteamCMD directory for later use
+$global:SteamCmdDirectory = if ($steamCmd -like "*steamcmd.exe") {
+    Split-Path $steamCmd -Parent
+} else {
+    $steamCmd
+}
+
 if (!(Test-PathExists $manifestPath) -or !(Test-PathExists $serverDir)) {
     Write-Log "[INFO] Server files not found, performing first install"
     Send-Notification admin "firstInstall" @{}
     
-    $updateResult = Update-GameServer -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+    # Check if SteamCMD exists, if not download it
+    $steamCmdExe = Join-Path $steamCmd "steamcmd.exe"
+    if (!(Test-PathExists $steamCmdExe)) {
+        Write-Log "[INFO] SteamCMD not found, downloading from Steam..."
+        
+        # Get the directory part of steamCmd path (remove steamcmd.exe if present)
+        $steamCmdDir = if ($steamCmd -like "*steamcmd.exe") {
+            Split-Path $steamCmd -Parent
+        } else {
+            $steamCmd
+        }
+        
+        # Create SteamCMD directory if it doesn't exist
+        if (!(Test-PathExists $steamCmdDir)) {
+            try {
+                New-Item -Path $steamCmdDir -ItemType Directory -Force | Out-Null
+                Write-Log "[INFO] Created SteamCMD directory: $steamCmdDir"
+            } catch {
+                Write-Log "[ERROR] Failed to create SteamCMD directory: $($_.Exception.Message)" -Level Error
+                Send-Notification admin "firstInstallFailed" @{ error = "Failed to create SteamCMD directory" }
+                return
+            }
+        }
+        
+        # Download SteamCMD
+        try {
+            $steamCmdZipUrl = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
+            $steamCmdZipPath = Join-Path $steamCmdDir "steamcmd.zip"
+            
+            Write-Log "[INFO] Downloading SteamCMD from: $steamCmdZipUrl"
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($steamCmdZipUrl, $steamCmdZipPath)
+            Write-Log "[INFO] SteamCMD downloaded successfully"
+            
+            # Extract SteamCMD
+            Write-Log "[INFO] Extracting SteamCMD..."
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($steamCmdZipPath, $steamCmdDir)
+            
+            # Remove zip file
+            Remove-Item $steamCmdZipPath -Force
+            Write-Log "[INFO] SteamCMD extracted and ready"
+            
+            # Update steamCmdExe path for verification
+            $steamCmdExe = Join-Path $steamCmdDir "steamcmd.exe"
+            
+            # Verify steamcmd.exe exists
+            if (Test-PathExists $steamCmdExe) {
+                Write-Log "[INFO] SteamCMD installation verified at: $steamCmdExe"
+            } else {
+                throw "SteamCMD executable not found after extraction"
+            }
+            
+        } catch {
+            Write-Log "[ERROR] Failed to download/extract SteamCMD: $($_.Exception.Message)" -Level Error
+            Send-Notification admin "firstInstallFailed" @{ error = "Failed to download SteamCMD: $($_.Exception.Message)" }
+            return
+        }
+    } else {
+        Write-Log "[INFO] SteamCMD found at: $steamCmdExe"
+    }
+    
+    # Create server directory if it doesn't exist
+    if (!(Test-PathExists $serverDir)) {
+        Write-Log "[INFO] Creating server directory: $serverDir"
+        try {
+            New-Item -Path $serverDir -ItemType Directory -Force | Out-Null
+            Write-Log "[INFO] Server directory created successfully"
+        } catch {
+            Write-Log "[ERROR] Failed to create server directory: $($_.Exception.Message)" -Level Error
+            Send-Notification admin "firstInstallFailed" @{ error = "Failed to create server directory" }
+            return
+        }
+    }
+    
+    # Now download the server
+    Write-Log "[INFO] Downloading SCUM server files via SteamCMD..."
+    
+    # Get the directory part of steamCmd path for Update-GameServer
+    $steamCmdDirectory = if ($steamCmd -like "*steamcmd.exe") {
+        Split-Path $steamCmd -Parent
+    } else {
+        $steamCmd
+    }
+    
+    $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+    
+    if ($updateResult.Success) {
+        Write-Log "[INFO] First install completed successfully"
+        Send-Notification admin "firstInstallCompleted" @{}
+        
+        # After successful first install, restart the script instead of starting server
+        Write-Log "[INFO] First install completed - restarting script to reload all functions"
+        Write-Log "[INFO] Exiting PowerShell and launching startserver.bat for proper restart"
+        
+        # Give a moment for notifications to be sent
+        Start-Sleep -Seconds 2
+        
+        # Exit PowerShell and restart via startserver.bat
+        $startBatPath = Join-Path $PSScriptRoot "startserver.bat"
+        if (Test-Path $startBatPath) {
+            Write-Log "[INFO] Launching $startBatPath for script restart"
+            Start-Process -FilePath $startBatPath -WorkingDirectory $PSScriptRoot
+            Write-Log "[INFO] PowerShell exiting for restart after first install"
+            exit 0
+        } else {
+            Write-Log "[WARNING] startserver.bat not found at $startBatPath - starting server normally"
+            Start-GameService -ServiceName $serviceName -Context "first-install-fallback"
+        }
+    } else {
+        Write-Log "[ERROR] First install failed: $($updateResult.Error)" -Level Error
+        Send-Notification admin "firstInstallFailed" @{ error = $updateResult.Error }
+        # Don't exit on failure, allow manual intervention
+        return
+    }
+    
+    # This code will only be reached if startserver.bat was not found
     $global:LastUpdateCheck = Get-Date
     $firstInstall = $true
+    
+    # Store the SteamCMD directory for later use
+    $global:SteamCmdDirectory = $steamCmdDirectory
 }
 
 # Run initial backup if enabled
@@ -277,7 +410,7 @@ if ($runUpdateOnStart -and -not $firstInstall) {
         $global:LastBackupTime = Get-Date
     }
     
-    $updateCheck = Test-UpdateAvailable -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ScriptRoot $PSScriptRoot
+    $updateCheck = Test-UpdateAvailable -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ScriptRoot $PSScriptRoot
     
     if ($updateCheck.UpdateAvailable) {
         Write-Log "[INFO] Update available! Installed: $($updateCheck.InstalledBuild) → Latest: $($updateCheck.LatestBuild)"
@@ -285,16 +418,16 @@ if ($runUpdateOnStart -and -not $firstInstall) {
             installed = $updateCheck.InstalledBuild
             latest = $updateCheck.LatestBuild 
         }
-        Update-GameServer -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+        Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
     } else {
         Write-Log "[INFO] No update available"
     }
     
     $global:LastUpdateCheck = Get-Date
 } elseif (-not $firstInstall) {
-    # Start service if not running and not updating
+    # Start service if not running and not during first install
     if (-not (Test-ServiceRunning $serviceName)) {
-        Write-Log "[INFO] Starting server service"
+        Write-Log "[INFO] Starting server service (normal startup)"
         Start-GameService -ServiceName $serviceName -Context "startup"
     } else {
         Write-Log "[INFO] Server service is already running"
@@ -503,7 +636,7 @@ try {
             
             Write-Log "[UPDATE] Checking for updates"
             
-            $updateCheck = Test-UpdateAvailable -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ScriptRoot $PSScriptRoot
+            $updateCheck = Test-UpdateAvailable -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ScriptRoot $PSScriptRoot
             
             if ($updateCheck.UpdateAvailable) {
                 Write-Log "[UPDATE] Available! Installed: $($updateCheck.InstalledBuild) → Latest: $($updateCheck.LatestBuild)"
@@ -514,7 +647,7 @@ try {
                         installed = $updateCheck.InstalledBuild
                         latest = $updateCheck.LatestBuild 
                     }
-                    Invoke-ImmediateUpdate -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+                    Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
                 } else {
                     # Server is online, schedule update
                     $global:UpdateScheduledTime = $now.AddMinutes($updateDelayMinutes)
@@ -537,7 +670,7 @@ try {
                 $global:UpdateWarning5Sent = $true
             } elseif ($now -ge $global:UpdateScheduledTime) {
                 Write-Log "[UPDATE] Executing scheduled update"
-                Invoke-ImmediateUpdate -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+                Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
                 $global:UpdateScheduledTime = $null
                 $global:UpdateWarning5Sent = $false
                 $updateOrRestart = $true

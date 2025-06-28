@@ -63,8 +63,8 @@
   },
 
   "admin_command_channel": {
-    "channelIds": [""],
-    "roleIds": [""],
+    "channelIds": [],
+    "roleIds": [],
     "commandPrefix": "!",
     "guildId": ""
   },
@@ -72,9 +72,9 @@
   "admin_notification": {
     "enabled": true,
     "method": "bot",
-    "webhooks": [""],
-    "channelIds": [""],
-    "roleIds": [""],
+    "webhooks": [],
+    "channelIds": [],
+    "roleIds": [],
     "messages": {
       "_comment_server_states": "=== Core Server State Notifications ===",
       "serverOnline": { 
@@ -371,9 +371,9 @@
   "player_notification": {
     "enabled": true,
     "method": "bot",
-    "webhooks": [""],
-    "channelIds": [""],
-    "roleIds": [""],
+    "webhooks": [],
+    "channelIds": [],
+    "roleIds": [],
     "messages": {
       "_comment_server_states": "=== Server State Changes (Player-Friendly) ===",
       "serverOnline": { 
