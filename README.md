@@ -202,7 +202,7 @@ All settings are in `SCUM-Server-Automation.config.json`. Key fields:
 
 # 🔔 Discord Integration Setup
 
-### Option 1: Discord Bot (Recommended)
+### Discord Bot (Recommended)
 
 **Why use a bot?** Better control, admin commands, and more reliable delivery.
 
