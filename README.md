@@ -243,10 +243,20 @@ All notifications and admin commands are handled exclusively via a **Discord bot
 | Commands ignored | Check Discord role/channel config |
 | Performance alerts | Adjust FPS thresholds in config |
 
-# 💬 Community & Support
+## 💬 Community & Contact
 
-- [Discord Support](https://playhub.cz/discord)
-- [Ko-fi](https://ko-fi.com/playhub)
-- [PayPal](https://paypal.me/spidees)
+Got questions, feedback, or just want to hang out?  
+You can contact me or join the community here:
 
-Thanks for using SCUM Server Automation!
+[![Discord Badge](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://playhub.cz/discord)
+
+---
+
+## 🙌 Support
+
+If you enjoy this project, consider supporting:
+
+[![Ko-fi Badge](https://img.shields.io/badge/Support%20me%20on-Ko--fi-ff5e5b?style=flat&logo=ko-fi&logoColor=white)](https://ko-fi.com/playhub)  
+[![PayPal Badge](https://img.shields.io/badge/Donate-PayPal-0070ba?style=flat&logo=paypal&logoColor=white)](https://paypal.me/spidees)
+
+Thanks for your support!
