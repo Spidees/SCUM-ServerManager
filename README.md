@@ -227,11 +227,11 @@ The NSSM GUI will open. Configure each tab as follows:
 - **Shutdown method:** `Generate Ctrl+C`
 - **Kill processes in console session:** ✅
 - **Timeouts:** `300000 ms` for all fields
+- ✅ **Terminate process
 
 ### 🔄 Exit Actions Tab
-- **On Exit:** `No action`
-- ✅ **srvany compatible exit code**
-- **Restart delay:** `3000 ms`
+- ✅ **On Exit:** `No action` **srvany compatible exit code**
+- **Delay restart by:** `3000 ms`
 
 ## 3. Install
 
