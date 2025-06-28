@@ -276,7 +276,7 @@
       },
       "firstInstallComplete": { 
         "title": ":white_check_mark: First Install Complete", 
-        "text": "**Install:** COMPLETED | **Status:** Server files installed | **Service:** Started | **Action:** Ready for players", 
+        "text": "**Install:** COMPLETED | **Status:** Server files installed | **Action:** Press Enter to exit in SCUM Server Automation and start again:", 
         "color": 3066993, 
         "enabled": true 
       },
