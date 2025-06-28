@@ -229,7 +229,7 @@ The NSSM GUI will open. Configure each tab as follows:
 - ✅ **Terminate process**
 
 ### 🔄 Exit Actions Tab
-- ✅ **On Exit:** `No action` **srvany compatible exit code**
+- ✅ **On Exit:** `No action (srvany compatible)`
 - **Delay restart by:** `3000 ms`
 
 ## 3. Install
