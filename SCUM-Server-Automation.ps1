@@ -363,17 +363,9 @@ if (!(Test-PathExists $manifestPath) -or !(Test-PathExists $serverDir)) {
         # Give a moment for notifications to be sent
         Start-Sleep -Seconds 2
         
-        # Exit PowerShell and restart via startserver.bat
-        $startBatPath = Join-Path $PSScriptRoot "startserver.bat"
-        if (Test-Path $startBatPath) {
-            Write-Log "[INFO] Launching $startBatPath for script restart"
-            Start-Process -FilePath $startBatPath -WorkingDirectory $PSScriptRoot
+        # Exit PowerShell after first install
             Write-Log "[INFO] PowerShell exiting for restart after first install"
             exit 0
-        } else {
-            Write-Log "[WARNING] startserver.bat not found at $startBatPath - starting server normally"
-            Start-GameService -ServiceName $serviceName -Context "first-install-fallback"
-        }
     } else {
         Write-Log "[ERROR] First install failed: $($updateResult.Error)" -Level Error
         Send-Notification admin "firstInstallFailed" @{ error = $updateResult.Error }
