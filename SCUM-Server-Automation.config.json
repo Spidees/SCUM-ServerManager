@@ -2,7 +2,7 @@
   "_comment": "SCUM Server Automation - Dedicated Server Management for Windows",
   
   "_comment_core_paths": "=== Core Paths & Service Configuration ===",
-  "serviceName": "SCUMSERVER",
+  "serviceName": "SCUMSERVER2",
   "backupRoot": "./backups",
   "savedDir": "./server/SCUM/Saved",
   "steamCmd": "./steamcmd/steamcmd.exe",
@@ -57,8 +57,8 @@
   "performanceThresholds": {
     "excellent": 30,
     "good": 20,
-    "fair": 15,
-    "poor": 10,
+    "fair": 10,
+    "poor": 5,
     "critical": 0
   },
 
@@ -78,7 +78,7 @@
       "_comment_server_states": "=== Core Server State Notifications ===",
       "serverOnline": { 
         "title": ":green_circle: Server Online", 
-        "text": "**Reason:** {reason} | **Performance:** Available in status command", 
+        "text": "**Reason:** {reason} | **Performance:** Available in status command !server_status", 
         "color": 3066993, 
         "enabled": true 
       },
@@ -370,8 +370,8 @@
   "player_notification": {
     "enabled": true,
     "method": "bot",
-    "channelIds": [],
-    "roleIds": [],
+    "channelIds": [""],
+    "roleIds": [""],
     "messages": {
       "_comment_server_states": "=== Server State Changes (Player-Friendly) ===",
       "serverOnline": { 
@@ -420,13 +420,13 @@
       "_comment_scheduled": "=== Scheduled Restart Warnings ===",
       "restartWarning15": { 
         "title": ":warning: Scheduled Restart in 15 Minutes", 
-        "text": "**SERVER RESTART IN 15 MINUTES** | **Action:** Please finish current activities | **Reason:** Scheduled maintenance", 
+        "text": "**SERVER RESTART IN 15 MINUTES** | **Action:** Please finish current activities | **Reason:** Scheduled restart", 
         "color": 15844367, 
         "enabled": true 
       },
       "restartWarning5": { 
         "title": ":warning: Scheduled Restart in 5 Minutes", 
-        "text": "**SERVER RESTART IN 5 MINUTES** | **Action:** Please save progress and prepare to disconnect | **Reason:** Scheduled maintenance", 
+        "text": "**SERVER RESTART IN 5 MINUTES** | **Action:** Please save progress and prepare to disconnect | **Reason:** Scheduled restart", 
         "color": 15844367, 
         "enabled": true 
       },

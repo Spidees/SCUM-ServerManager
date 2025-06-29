@@ -357,6 +357,35 @@ if (!(Test-PathExists $manifestPath) -or !(Test-PathExists $serverDir)) {
         Send-Notification admin "firstInstallComplete" @{
         }
         
+        # --- Start server to generate config files ---
+        $scumExe = Join-Path $serverDir "SCUM\Binaries\Win64\SCUMServer.exe"
+        $configIni = Join-Path $serverDir "SCUM\Saved\Config\WindowsServer\ServerSettings.ini"
+        $logFile = Join-Path $serverDir "SCUM\Saved\Logs\SCUM.log"
+        $saveFilesDir = Join-Path $serverDir "SCUM\Saved\SaveFiles"
+        if (Test-Path $scumExe) {
+            Write-Log "[INFO] Launching SCUMServer.exe to generate configuration files..."
+            $proc = Start-Process -FilePath $scumExe -ArgumentList "-log" -PassThru
+            $timeoutSec = 120
+            $elapsed = 0
+            while ((-not (Test-Path $configIni) -or -not (Test-Path $logFile) -or -not (Test-Path $saveFilesDir)) -and $elapsed -lt $timeoutSec) {
+                Start-Sleep -Seconds 2
+                $elapsed += 2
+            }
+            if ((Test-Path $configIni) -and (Test-Path $logFile) -and (Test-Path $saveFilesDir)) {
+                Write-Log "[INFO] All required files and folders have been generated. Stopping server."
+            } else {
+                Write-Log "[WARNING] Not all required files/folders were generated within $timeoutSec seconds. Stopping server."
+            }
+            try {
+                Stop-Process -Id $proc.Id -Force
+                Write-Log "[INFO] SCUMServer.exe has been stopped."
+            } catch {
+                Write-Log "[WARNING] Failed to stop SCUMServer.exe: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Log "[WARNING] SCUMServer.exe not found, cannot generate configuration files."
+        }
+        
         # After successful first install, restart the script instead of starting server
         Write-Log "[INFO] First install completed - restarting script to reload all functions"
         Write-Log "[INFO] Exiting PowerShell"
