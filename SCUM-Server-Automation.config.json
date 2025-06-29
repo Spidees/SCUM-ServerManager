@@ -12,7 +12,7 @@
 
   "_comment_settings": "=== Server Management Settings ===",
   "_comment_settings_info": "restartTimes: Scheduled restart times (24h format) | backupIntervalMinutes: Periodic backup interval | updateCheckIntervalMinutes: Update check frequency | updateDelayMinutes: Delay before applying updates",
-  "restartTimes": ["02:00", "14:00", "20:00"],
+  "restartTimes": ["21:40", "14:00", "20:00"],
   "backupIntervalMinutes": 60,
   "periodicBackupEnabled": true,
   "updateCheckIntervalMinutes": 10,
@@ -37,10 +37,11 @@
   "playerNotificationMinimumPlayers": 0,
   
   "_comment_security": "=== Security & Performance Settings ===",
-  "_comment_security_info": "enableDetailedLogging: Enable detailed logging for troubleshooting | maxLogFileSizeMB: Maximum log file size before rotation | logRotationEnabled: Enable automatic log rotation",
+  "_comment_security_info": "enableDetailedLogging: Enable detailed logging for troubleshooting | maxLogFileSizeMB: Maximum log file size before rotation | logRotationEnabled: Enable automatic log rotation | consoleLogLevel: Console output level (Debug/Info/Warning/Error)",
   "enableDetailedLogging": true,
   "maxLogFileSizeMB": 100,
   "logRotationEnabled": true,
+  "consoleLogLevel": "Warning",
   
   "_comment_log_monitoring": "=== Log Monitoring Settings ===",
   "_comment_log_monitoring_info": "customLogPath: Custom path to SCUM log file (null = auto-detect) | logMonitoringEnabled: Enable log monitoring for server state | logMonitoringIntervalSeconds: Log check interval | preventStatusRegression: Prevent status downgrades without log evidence",
@@ -78,275 +79,281 @@
       "_comment_server_states": "=== Core Server State Notifications ===",
       "serverOnline": { 
         "title": ":green_circle: Server Online", 
-        "text": "**Reason:** {reason} | **Performance:** Available in status command !server_status", 
+        "text": "**Status:** SCUM server is online and accepting connections | **Reason:** {reason} | **Performance:** Use `!server_status` for detailed metrics", 
         "color": 3066993, 
         "enabled": true 
       },
       "serverOffline": { 
         "title": ":red_circle: Server Offline", 
-        "text": "**Reason:** {reason} | **Service:** Checking status | **Action:** Investigating", 
+        "text": "**Status:** SCUM server is not responding | **Reason:** {reason} | **Action:** Automation system monitoring for recovery", 
         "color": 15105570, 
         "enabled": true 
       },
       "serverStarted": { 
         "title": ":white_check_mark: Service Started", 
-        "text": "**Action:** Service started successfully | **Context:** {context} | **Status:** Ready for connections", 
+        "text": "**Status:** SCUMSERVER2 service started successfully | **Context:** {context} | **Phase:** Initializing game server", 
         "color": 3066993, 
         "enabled": true 
       },
       "serverStopped": { 
         "title": ":octagonal_sign: Server Stopped", 
-        "text": "**Action:** Service stopped | **Context:** {context} | **Status:** Offline", 
+        "text": "**Status:** SCUMSERVER2 service stopped | **Context:** {context} | **Action:** Monitoring for restart requirements", 
         "color": 15105570, 
         "enabled": true 
       },
       "serverStarting": { 
         "title": ":hourglass_flowing_sand: Server Starting", 
-        "text": "**Phase:** Initialization | **Reason:** {reason} | **Progress:** Launching service", 
+        "text": "**Phase:** Service initialization in progress | **Reason:** {reason} | **ETA:** Server will be online in 1-2 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverLoading": { 
         "title": ":gear: Server Loading", 
-        "text": "**Phase:** World Loading | **Reason:** {reason} | **Progress:** Loading game world", 
+        "text": "**Phase:** Loading SCUM world and game data | **Reason:** {reason} | **Progress:** Server startup sequence active", 
         "color": 15844367, 
         "enabled": true 
       },
       "serverRestarting": { 
         "title": ":arrows_counterclockwise: Server Restarting", 
-        "text": "**Action:** Service Restart | **Reason:** {reason} | **ETA:** 1-2 minutes", 
+        "text": "**Action:** SCUM server restart in progress | **Reason:** {reason} | **ETA:** Back online in 1-2 minutes", 
         "color": 15844367, 
+        "enabled": true 
+      },
+      "serverRestarted": { 
+        "title": ":white_check_mark: Server Restart Complete", 
+        "text": "**Status:** SCUM server restart completed successfully | **Reason:** {reason} | **Action:** Server is now online and ready for players", 
+        "color": 3066993, 
         "enabled": true 
       },
       "serverCrashed": { 
         "title": ":boom: Server Crashed", 
-        "text": "**Issue:** Unexpected termination | **Restart Attempt:** {restartAttempt} | **Action:** Auto-restart initiated", 
+        "text": "**Issue:** SCUM server process terminated unexpectedly | **Attempt:** {restartAttempt} | **Action:** Automated recovery initiated", 
         "color": 15158332, 
         "enabled": true 
       },
       "serverHanging": { 
-        "title": ":warning: Server Hanging", 
-        "text": "**Issue:** No activity detected | **Reason:** {reason} | **Action:** Restart required", 
+        "title": ":warning: Server Unresponsive", 
+        "text": "**Issue:** Server not responding to monitoring checks | **Reason:** {reason} | **Action:** Automated restart required", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_performance": "=== Performance Monitoring ===",
       "performanceExcellent": { 
-        "title": ":star2: Performance Excellent", 
-        "text": "**Details:** {performanceSummary} | **Status:** Optimal operation", 
+        "title": ":star2: Server Performance Excellent", 
+        "text": "**FPS:** {fps} avg | **Frame Time:** {frameTime}ms | **Status:** Server running optimally", 
         "color": 3066993, 
-        "enabled": false 
+        "enabled": true
       },
       "performanceGood": { 
-        "title": ":white_check_mark: Performance Good", 
-        "text": "**Details:** {performanceSummary} | **Status:** Stable operation", 
+        "title": ":white_check_mark: Server Performance Good", 
+        "text": "**FPS:** {fps} avg | **Frame Time:** {frameTime}ms | **Status:** Server running well", 
         "color": 7844437, 
-        "enabled": false 
+        "enabled": true
       },
       "performanceFair": { 
-        "title": ":yellow_circle: Performance Fair", 
-        "text": "**Details:** {performanceSummary} | **Status:** Monitoring recommended", 
+        "title": ":yellow_circle: Server Performance Fair", 
+        "text": "**FPS:** {fps} avg | **Frame Time:** {frameTime}ms | **Status:** Performance monitoring active", 
         "color": 15844367, 
         "enabled": true 
       },
       "performancePoor": { 
-        "title": ":orange_circle: Performance Poor", 
-        "text": "**Details:** {performanceSummary} | **Status:** Investigation needed", 
+        "title": ":orange_circle: Server Performance Poor", 
+        "text": "**FPS:** {fps} avg | **Frame Time:** {frameTime}ms | **Status:** Performance impact detected", 
         "color": 15105570, 
         "enabled": true 
       },
       "performanceCritical": { 
-        "title": ":red_circle: Performance Critical", 
-        "text": "**Details:** {performanceSummary} | **Status:** Immediate attention required", 
+        "title": ":red_circle: Server Performance Critical", 
+        "text": "**FPS:** {fps} avg | **Frame Time:** {frameTime}ms | **Status:** Automatic restart may be triggered", 
         "color": 15158332, 
         "enabled": true 
       },
       
-      "_comment_robust_monitoring": "=== Robust Monitoring & Health Notifications ===",
+      "_comment_robust_monitoring": "=== Health & Recovery System ===",
       "healthIssueDetected": { 
-        "title": ":warning: Health Issue Detected", 
-        "text": "**State:** {healthState} | **Details:** {details} | **Action:** Investigating", 
+        "title": ":warning: Server Health Issue", 
+        "text": "**Problem:** {healthState} | **Details:** {details} | **Action:** Automated diagnostics running", 
         "color": 15105570, 
         "enabled": true 
       },
       "recoveryAttempt": { 
-        "title": ":wrench: Recovery Attempt", 
-        "text": "**Problem:** {problemType} | **Action:** {action} | **Success:** {success}", 
+        "title": ":wrench: Automated Recovery", 
+        "text": "**Issue:** {problemType} | **Action:** {action} | **Status:** {success}", 
         "color": 15844367, 
         "enabled": true 
       },
       "healthRecovered": { 
-        "title": ":heart: Health Recovered", 
-        "text": "**Previous State:** {previousState} | **Current State:** {currentState} | **Recovery Time:** {recoveryTime}", 
+        "title": ":heart: Server Health Restored", 
+        "text": "**Previously:** {previousState} | **Now:** {currentState} | **Recovery Time:** {recoveryTime}", 
         "color": 3066993, 
         "enabled": true 
       },
 
-      "_comment_system": "=== System & Manager Events ===",
+      "_comment_system": "=== System & Automation Events ===",
       "managerStarted": { 
-        "title": ":rocket: Manager Started", 
-        "text": "**Service:** SCUM Server Automation | **Action:** Monitoring initialized | **Features:** Auto-restart, updates, backups enabled", 
+        "title": ":rocket: Automation System Started", 
+        "text": "**System:** SCUM Server Automation | **Status:** Active monitoring and management enabled | **Features:** Auto-restart, updates, backups, performance monitoring", 
         "color": 3447003, 
         "enabled": true 
       },
 
       "_comment_updates": "=== Update System ===",
       "updateAvailable": { 
-        "title": ":arrows_counterclockwise: Update Available", 
-        "text": "**Installed:** Build {installed} | **Latest:** Build {latest} | **Action:** Scheduled for installation", 
+        "title": ":arrows_counterclockwise: Server Update Available", 
+        "text": "**Current Build:** {installed} | **New Build:** {latest} | **Status:** Update will be installed automatically", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateInProgress": { 
-        "title": ":gear: Update In Progress", 
-        "text": "**Action:** Installing server files | **Reason:** {reason} | **ETA:** 3-6 minutes", 
+        "title": ":gear: Server Update In Progress", 
+        "text": "**Action:** Downloading and installing server files via SteamCMD | **Reason:** {reason} | **ETA:** 3-6 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateCompleted": { 
-        "title": ":white_check_mark: Update Completed", 
-        "text": "**Action:** Server files updated successfully | **Build:** {newBuild} | **Status:** Service restarting", 
+        "title": ":white_check_mark: Server Update Completed", 
+        "text": "**New Build:** {newBuild} | **Status:** Server files updated successfully | **Action:** Server restarting with new version", 
         "color": 3066993, 
         "enabled": true 
       },
       "updateSuccess": { 
-        "title": ":white_check_mark: Update Successful", 
-        "text": "**Server files updated** | **Action:** Service restarting | **Result:** Success", 
+        "title": ":white_check_mark: Update Installation Successful", 
+        "text": "**Status:** Server updated to latest version | **Action:** Server restarting to apply changes", 
         "color": 3066993, 
         "enabled": true 
       },
       "updateError": { 
-        "title": ":x: Update Error", 
-        "text": "**Error:** {error} | **Server may be offline** | **Action:** Manual intervention required", 
+        "title": ":x: Server Update Error", 
+        "text": "**Error:** {error} | **Status:** Update failed, server may be offline | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
       "updateWarning": { 
         "title": ":warning: Update Warning", 
-        "text": "**Issue:** {warning} | **Action:** Will retry on next check", 
+        "text": "**Issue:** {warning} | **Action:** Update will be retried on next scheduled check", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateFailed": { 
-        "title": ":x: Update Failed", 
-        "text": "**Error:** {error} | **Exit Code:** {exitCode} | **Action:** Check server logs", 
+        "title": ":x: Update Installation Failed", 
+        "text": "**Error:** {error} | **Exit Code:** {exitCode} | **Action:** Check server logs and network connection", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_backup": "=== Backup System ===",
       "backupCreated": { 
-        "title": ":floppy_disk: Backup Created", 
-        "text": "**File:** {path} | **Compressed and stored** | **Action:** Auto-cleanup applied", 
+        "title": ":floppy_disk: Server Backup Created", 
+        "text": "**File:** {path} | **Status:** Save data compressed and stored | **Cleanup:** Old backups automatically managed", 
         "color": 3447003, 
         "enabled": true 
       },
       "backupCompleted": { 
-        "title": ":white_check_mark: Backup Completed", 
-        "text": "**File:** ``{backupFile}`` | **Size:** {backupSize} | **Status:** Successfully created", 
+        "title": ":white_check_mark: Backup Completed Successfully", 
+        "text": "**File:** `{backupFile}` | **Size:** {backupSize} | **Status:** Save data backup created", 
         "color": 3066993, 
         "enabled": true 
       },
       "backupError": { 
-        "title": ":x: Backup Error", 
-        "text": "**Unable to create backup** | **Action:** Check filesystem permissions", 
+        "title": ":x: Backup Creation Error", 
+        "text": "**Issue:** Unable to create server backup | **Action:** Check filesystem permissions and disk space", 
         "color": 15158332, 
         "enabled": true 
       },
       "backupFailed": { 
-        "title": ":x: Backup Failed", 
-        "text": "**Error:** {error} | **Action:** Check permissions and disk space", 
+        "title": ":x: Backup Process Failed", 
+        "text": "**Error:** {error} | **Action:** Verify permissions and available disk space", 
         "color": 15158332, 
         "enabled": true 
       },
       "backupWarning": { 
         "title": ":warning: Backup Warning", 
-        "text": "**Issue:** Saved folder not found | **Action:** Backup will retry when folder exists", 
+        "text": "**Issue:** Server save folder not found | **Action:** Backup will retry when save data is available", 
         "color": 15844367, 
         "enabled": true 
       },
 
       "_comment_install": "=== Installation & Setup ===",
       "firstInstall": { 
-        "title": ":package: First Install", 
-        "text": "**Install:** STARTING | **Status:** Server files missing | **Action:** Downloading via SteamCMD | **ETA:** 8-15 minutes", 
+        "title": ":package: Server Initial Installation", 
+        "text": "**Status:** SCUM server files not found | **Action:** Downloading server via SteamCMD | **ETA:** 8-15 minutes depending on connection", 
         "color": 3447003, 
         "enabled": true 
       },
       "firstInstallComplete": { 
-        "title": ":white_check_mark: First Install Complete", 
-        "text": "**Install:** COMPLETED | **Status:** Server files installed | **Action:** Press Enter to exit in SCUM Server Automation and start again:", 
+        "title": ":white_check_mark: Server Installation Complete", 
+        "text": "**Status:** SCUM server files successfully installed | **Action:** Automation system ready - restart the script to begin monitoring", 
         "color": 3066993, 
         "enabled": true 
       },
       "installError": { 
-        "title": ":x: Install Error", 
-        "text": "**Install:** FAILED | **Issue:** Service failed to start | **Action:** Check installation logs", 
+        "title": ":x: Server Installation Error", 
+        "text": "**Issue:** Server installation failed | **Action:** Check SteamCMD logs and network connection", 
         "color": 15158332, 
         "enabled": true 
       },
       "installFailed": { 
-        "title": ":x: Install Failed", 
-        "text": "**Install:** FAILED | **Exit Code:** {exitCode} | **Status:** SteamCMD error | **Action:** Verify network connection", 
+        "title": ":x: Server Installation Failed", 
+        "text": "**Error:** SteamCMD exit code {exitCode} | **Action:** Verify network connection and Steam credentials", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_scheduled": "=== Scheduled Operations ===",
       "scheduledRestart": { 
-        "title": ":arrows_counterclockwise: Scheduled Restart", 
-        "text": "**Restart:** SCHEDULED | **Time:** {time} | **Action:** Backing up and restarting | **ETA:** 1-2 minutes", 
+        "title": ":arrows_counterclockwise: Scheduled Server Restart", 
+        "text": "**Time:** {time} | **Action:** Automatic backup and restart in progress | **ETA:** Server back online in 2-3 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
       "startupTimeout": { 
-        "title": ":clock1: Startup Timeout", 
-        "text": "**Issue:** Service startup timeout after {timeout} minutes | **Context:** {context} | **Action:** Manual intervention required", 
+        "title": ":clock1: Server Startup Timeout", 
+        "text": "**Issue:** Server failed to start within {timeout} minutes | **Context:** {context} | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
       "restartError": { 
-        "title": ":x: Restart Error", 
-        "text": "**Restart:** FAILED | **Issue:** Service failed to start | **Action:** Manual intervention required", 
+        "title": ":x: Server Restart Error", 
+        "text": "**Issue:** Server restart failed | **Problem:** Service failed to start properly | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
       "autoRestartError": { 
-        "title": ":x: Auto-Restart Error", 
-        "text": "**Auto-Restart:** FAILED | **Attempts:** {attempts} | **Error:** {error} | **Action:** Manual intervention required", 
+        "title": ":x: Automated Restart Error", 
+        "text": "**Attempts:** {attempts} failed restart attempts | **Error:** {error} | **Action:** Manual intervention required", 
         "color": 15158332, 
         "enabled": true 
       },
 
       "_comment_admin": "=== Admin Commands ===",
       "adminRestart": { 
-        "title": ":arrows_counterclockwise: Admin Restart", 
-        "text": "**Action:** RESTART | **Admin:** {admin} | **Schedule:** {delay} | **Status:** Command executed", 
+        "title": ":arrows_counterclockwise: Admin Restart Command", 
+        "text": "**Admin:** {admin} | **Action:** Server restart scheduled in {delay} | **Status:** Command accepted", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminStop": { 
-        "title": ":octagonal_sign: Admin Stop", 
-        "text": "**Action:** STOP | **Admin:** {admin} | **Status:** Server stopped | **Auto-restart:** Disabled", 
+        "title": ":octagonal_sign: Admin Stop Command", 
+        "text": "**Admin:** {admin} | **Action:** Server stopped by admin command | **Auto-restart:** Disabled until manual start", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStart": { 
-        "title": ":white_check_mark: Admin Start", 
-        "text": "**Action:** START | **Admin:** {admin} | **Status:** Server starting | **ETA:** 1-2 minutes", 
+        "title": ":white_check_mark: Admin Start Command", 
+        "text": "**Admin:** {admin} | **Action:** Server startup initiated | **ETA:** Server online in 1-2 minutes", 
         "color": 3066993, 
         "enabled": true 
       },
       "adminBackup": { 
-        "title": ":floppy_disk: Admin Backup", 
-        "text": "**Action:** BACKUP | **Admin:** {admin} | **Status:** Manual backup initiated | **Target:** Current save data", 
+        "title": ":floppy_disk: Admin Backup Command", 
+        "text": "**Admin:** {admin} | **Action:** Manual backup initiated | **Target:** Current server save data", 
         "color": 3447003, 
         "enabled": true 
       },
       "adminUpdate": { 
-        "title": ":arrows_counterclockwise: Admin Update", 
-        "text": "**Action:** UPDATE | **Admin:** {admin} | **Schedule:** {delay} | **Status:** Update command executed", 
+        "title": ":arrows_counterclockwise: Admin Update Command", 
+        "text": "**Admin:** {admin} | **Action:** Server update scheduled in {delay} | **Status:** Command accepted", 
         "color": 15844367, 
         "enabled": true 
       },
@@ -359,7 +366,7 @@
         "enabled": true 
       },
       "adminCommandExecuted": { 
-        "title": ":zap: Admin Command", 
+        "title": ":zap: Admin Command Executed", 
         "text": "**Command:** {command} | **Admin:** {executor} | **Result:** {result}", 
         "color": 3447003, 
         "enabled": true 
@@ -396,7 +403,7 @@
         "title": ":gear: Server is Loading", 
         "text": "**Progress:** Loading game world | **ETA:** Almost ready to join!", 
         "color": 15844367, 
-        "enabled": false 
+        "enabled": true
       },
       "serverRestarting": { 
         "title": ":arrows_counterclockwise: Server is Restarting", 
@@ -446,137 +453,137 @@
       "_comment_updates": "=== Update Notifications ===",
       "updateAvailable": { 
         "title": ":arrows_counterclockwise: Server Update Available", 
-        "text": "**NEW UPDATE AVAILABLE** | **Schedule:** Server will update and restart in {delayMinutes} minutes | **Action:** Please finish current activities", 
+        "text": "**NEW UPDATE AVAILABLE** | **Action:** Server will update and restart in {delayMinutes} minutes | **Please finish current activities**", 
         "color": 15844367, 
         "enabled": true 
       },
       "updateWarning": { 
         "title": ":warning: Update Starting Soon", 
-        "text": "**SERVER UPDATE IN {delayMinutes} MINUTES** | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
+        "text": "**SERVER UPDATE IN {delayMinutes} MINUTES** | **Server will restart to install update** | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "updateWarning5": { 
-        "title": ":warning: Update Starting Soon", 
-        "text": "**SERVER UPDATE IN {warningMinutes} MINUTES** | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
+        "title": ":warning: Update Starting in 5 Minutes", 
+        "text": "**SERVER UPDATE IN 5 MINUTES** | **Save your progress and prepare to disconnect** | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "updateStarting": { 
-        "title": ":gear: Server Update Starting", 
-        "text": "**STARTING NOW** | **Action:** Server is restarting to install update | **ETA:** Back online in 3-6 minutes", 
+        "title": ":gear: Server Update Starting Now", 
+        "text": "**UPDATE STARTING NOW** | **Server is restarting to install update** | **ETA:** Back online in 3-6 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "updateCompleted": { 
         "title": ":white_check_mark: Server Update Completed", 
-        "text": "**COMPLETED SUCCESSFULLY** | **Server back online with latest updates** | **Action:** Safe to reconnect!", 
+        "text": "**UPDATE COMPLETED SUCCESSFULLY** | **Server is back online with latest updates** | **Safe to reconnect!**", 
         "color": 3066993, 
         "enabled": true 
       },
       "updateInProgress": { 
         "title": ":gear: Update In Progress", 
-        "text": "**INSTALLING** | **Progress:** Downloading and installing server files | **ETA:** Please wait 3-6 minutes", 
+        "text": "**INSTALLING SERVER UPDATE** | **Downloading and installing server files** | **ETA:** Please wait 3-6 minutes", 
         "color": 15844367, 
         "enabled": true 
       },
 
       "_comment_admin": "=== Admin Actions ===",
       "adminRestartWarning": { 
-        "title": ":arrows_counterclockwise: Restart Scheduled", 
-        "text": "**Action:** RESTART SCHEDULED | **Time:** In {delayMinutes} minutes | **Action:** Please finish current activities", 
+        "title": ":arrows_counterclockwise: Restart Scheduled by Admin", 
+        "text": "**ADMIN RESTART SCHEDULED** | **Time:** In {minutesLeft} minutes | **Please finish your current activities**", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminRestartWarning5": { 
-        "title": ":warning: Server Restart Soon", 
-        "text": "**Action:** RESTART IN {warningMinutes} MINUTES | **Action:** Save progress and prepare to disconnect | **ETA:** Back online in 2 minutes", 
+        "title": ":warning: Server Restart in 5 Minutes", 
+        "text": "**ADMIN RESTART IN 5 MINUTES** | **Save your progress and prepare to disconnect** | **ETA:** Back online in 2 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminRestartNow": { 
-        "title": ":arrows_counterclockwise: Server Restart Now", 
-        "text": "**Action:** RESTARTING NOW | **Status:** Server is restarting | **ETA:** Back online in 1-2 minutes", 
+        "title": ":arrows_counterclockwise: Server Restarting Now", 
+        "text": "**ADMIN RESTART NOW** | **Server is restarting** | **ETA:** Back online in 1-2 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStopWarning": { 
         "title": ":octagonal_sign: Server Stop Scheduled", 
-        "text": "**Time:** IN {delayMinutes} MINUTES | **Action:** Please finish and disconnect", 
+        "text": "**ADMIN STOP SCHEDULED** | **Time:** IN {minutesLeft} MINUTES | **Please finish and disconnect**", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopWarning5": { 
-        "title": ":warning: Server Stop Soon", 
-        "text": "**Time:** In {warningMinutes} MINUTES | **Action:** Save progress and disconnect now", 
+        "title": ":warning: Server Stopping in 5 Minutes", 
+        "text": "**SERVER STOPPING IN 5 MINUTES** | **Save your progress and disconnect now**", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopNow": { 
         "title": ":octagonal_sign: Server Stopping Now", 
-        "text": "**Action:** SERVER STOPPING NOW | **Status:** Server is being stopped | **Info:** Check announcements for more informations", 
+        "text": "**SERVER STOPPING NOW** | **You will be disconnected** | **Check announcements for more information**", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminStartNow": { 
         "title": ":white_check_mark: Server Starting", 
-        "text": "**Action:** SERVER STARTING | **Status:** Admin is bringing server online | **ETA:** Ready to join in 1-2 minutes", 
+        "text": "**SERVER STARTING** | **Admin is bringing server online** | **ETA:** Ready to join in 1-2 minutes", 
         "color": 3066993, 
         "enabled": true 
       },
       "adminUpdateWarning": { 
         "title": ":arrows_counterclockwise: Server Update Scheduled", 
-        "text": "**Time:** IN {delayMinutes} MINUTES | **Action:** Server will restart for update", 
+        "text": "**ADMIN UPDATE SCHEDULED** | **Time:** IN {minutesLeft} MINUTES | **Server will restart for update**", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminUpdateWarning5": { 
-        "title": ":warning: Server Update Soon", 
-        "text": "**Action:** IN {warningMinutes} MINUTES | **Action:** Server will restart for update | **ETA:** Back online in 5 minutes", 
+        "title": ":warning: Server Update in 5 Minutes", 
+        "text": "**UPDATE IN 5 MINUTES** | **Server will restart for update** | **ETA:** Back online in 5 minutes", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminUpdateNow": { 
-        "title": ":gear: Server Update Now", 
-        "text": "**Action:** UPDATE STARTING NOW | **Status:** Server restarting for initiated update | **ETA:** Back online in 3-6 minutes", 
+        "title": ":gear: Server Update Starting Now", 
+        "text": "**UPDATE STARTING NOW** | **Server restarting for admin-initiated update** | **ETA:** Back online in 3-6 minutes", 
         "color": 15158332, 
         "enabled": true 
       },
       "adminRestartScheduled": { 
         "title": ":arrows_counterclockwise: Admin Restart Scheduled", 
-        "text": "**Action:** Restart in {delayMinutes} minutes | **Please finish your activities**", 
+        "text": "**Admin restart scheduled in {delayMinutes} minutes** | **Please finish your activities**", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminRestartImmediate": { 
         "title": ":arrows_counterclockwise: Server Restarting Now", 
-        "text": "**Action:** Immediate restart | **Server going down now**", 
+        "text": "**Immediate admin restart** | **Server going down now**", 
         "color": 15158332, 
-        "enabled": false 
+        "enabled": true
       },
       "adminStopScheduled": { 
         "title": ":octagonal_sign: Server Stop Scheduled", 
-        "text": "**Action:** Stop in {delayMinutes} minutes | **Please finish your activities**", 
+        "text": "**Admin stop scheduled in {delayMinutes} minutes** | **Please finish your activities**", 
         "color": 15105570, 
         "enabled": true 
       },
       "adminStopImmediate": { 
         "title": ":octagonal_sign: Server Stopping Now", 
-        "text": "**Action:** Immediate stop | **Server going offline now**", 
+        "text": "**Immediate admin stop** | **Server going offline now**", 
         "color": 15158332, 
-        "enabled": false 
+        "enabled": true
       },
       "adminUpdateScheduled": { 
         "title": ":arrows_counterclockwise: Update Scheduled", 
-        "text": "**Action:** Update in {delayMinutes} minutes | **Server will restart**", 
+        "text": "**Admin update scheduled in {delayMinutes} minutes** | **Server will restart for update**", 
         "color": 15844367, 
         "enabled": true 
       },
       "adminUpdateImmediate": { 
         "title": ":gear: Update Starting Now", 
-        "text": "**Action:** Immediate update | **Server restarting for update**", 
+        "text": "**Immediate admin update** | **Server restarting for update now**", 
         "color": 15158332, 
-        "enabled": false 
+        "enabled": true
       }
     }
   }

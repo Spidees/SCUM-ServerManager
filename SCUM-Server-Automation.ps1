@@ -13,20 +13,30 @@ Write-Host "=== SCUM Server Automation - Dedicated Server Management for Windows
 $ModulesPath = Join-Path $PSScriptRoot "modules"
 
 try {
-    # Import modules in dependency order
-    Import-Module (Join-Path $ModulesPath "common\common.psm1") -Force -Global
-    Import-Module (Join-Path $ModulesPath "notifications\notifications.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "service\service.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "backup\backup.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "update\update.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "admincommands\admincommands.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "logreader\logreader.psm1") -Force
-    Import-Module (Join-Path $ModulesPath "monitoring\monitoring.psm1") -Force
+    # Suppress PowerShell verb warnings for cleaner output
+    $WarningPreference = 'SilentlyContinue'
+    
+    # Import modules in dependency order with new structure
+    Import-Module (Join-Path $ModulesPath "core\common\common.psm1") -Force -Global -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "communication\notifications\notifications.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "communication\events\events.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "communication\adapters.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "server\service\service.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "automation\backup\backup.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "automation\update\update.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "server\installation\installation.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "automation\scheduling\scheduling.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "communication\admin\commands.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "core\logging\parser\parser.psm1") -Force -WarningAction SilentlyContinue
+    Import-Module (Join-Path $ModulesPath "server\monitoring\monitoring.psm1") -Force -WarningAction SilentlyContinue
+    
+    # Restore warning preference
+    $WarningPreference = 'Continue'
     
     Write-Host "[INFO] All modules loaded successfully" -ForegroundColor Green
     
     # Verify critical functions are available
-    $requiredFunctions = @('Initialize-CommonModule', 'Write-Log', 'Get-SafeConfigValue', 'Test-PathExists', 'Get-TimeStamp', 'Update-MonitoringMetrics', 'Read-GameLogs', 'Process-LogEvent')
+    $requiredFunctions = @('Initialize-CommonModule', 'Write-Log', 'Get-SafeConfigValue', 'Test-PathExists', 'Get-TimeStamp', 'Update-MonitoringMetrics', 'Update-ServerMonitoring', 'Get-ServerStatus')
     $missingFunctions = $requiredFunctions | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) }
     
     if ($missingFunctions.Count -gt 0) {
@@ -98,13 +108,16 @@ foreach ($pathName in $criticalPaths.Keys) {
 
 # --- INITIALIZE MODULES ---
 Initialize-NotificationModule -Config $config
+Initialize-EventSystem -Config $config
 Show-NotificationSettings
 Initialize-ServiceModule -Config $config
 Initialize-BackupModule -Config $config
 Initialize-UpdateModule -Config $config
+Initialize-InstallationModule -Config $config
+Initialize-SchedulingModule -Config $config
 Initialize-AdminCommandModule -Config $config
 
-# Initialize LogReader with proper log path
+# Initialize LogReader with proper log path (parsing only)
 $scumLogPath = Get-SafeConfigValue $config "customLogPath" $null
 if (-not $scumLogPath) {
     # Default SCUM server log path
@@ -112,6 +125,10 @@ if (-not $scumLogPath) {
 }
 Initialize-LogReaderModule -Config $config -LogPath $scumLogPath
 
+# Reset parser state to prevent log spam on startup
+Reset-LogParserState
+
+# Initialize Monitoring with server status management
 Initialize-MonitoringModule -Config $config -LogPath $scumLogPath
 
 # Initialize Discord admin command baseline to avoid processing old messages
@@ -149,6 +166,23 @@ $global:ServerIntentionallyStopped = $false
 $global:LastAutoRestartAttempt = $null
 $global:SkipNextScheduledRestart = $false
 
+# Admin scheduled actions
+$global:AdminRestartScheduledTime = $null
+$global:AdminRestartScheduleTime = $null  # When the restart was scheduled
+$global:AdminRestartWarning10Sent = $false
+$global:AdminRestartWarning5Sent = $false
+$global:AdminRestartWarning1Sent = $false
+$global:AdminStopScheduledTime = $null
+$global:AdminStopScheduleTime = $null  # When the stop was scheduled
+$global:AdminStopWarning10Sent = $false
+$global:AdminStopWarning5Sent = $false
+$global:AdminStopWarning1Sent = $false
+$global:AdminUpdateScheduledTime = $null
+$global:AdminUpdateScheduleTime = $null  # When the update was scheduled
+$global:AdminUpdateWarning10Sent = $false
+$global:AdminUpdateWarning5Sent = $false
+$global:AdminUpdateWarning1Sent = $false
+
 $global:AutoRestartCooldownMinutes = Get-SafeConfigValue $config "autoRestartCooldownMinutes" 2
 $global:MaxConsecutiveRestartAttempts = Get-SafeConfigValue $config "maxConsecutiveRestartAttempts" 3
 $global:ConsecutiveRestartAttempts = 0
@@ -162,254 +196,61 @@ $global:ScriptStartTime = Get-Date
 $global:ServiceStartInitiated = $false
 $global:ServiceStartContext = ""
 $global:ServiceStartTime = $null
+$global:AdminRestartInProgress = $false  # Track admin restart completion
 
 # Send startup notification
-Send-Notification admin "managerStarted" @{ timestamp = Get-TimeStamp }
+Send-ManagerStartedEvent @{ timestamp = Get-TimeStamp }
 
-# --- HELPER FUNCTIONS ---
-function Get-NextScheduledRestart {
-    param([string[]]$RestartTimes)
-    
-    $now = Get-Date
-    $todayRestarts = $RestartTimes | ForEach-Object {
-        $t = [datetime]::ParseExact($_, 'HH:mm', $null)
-        $scheduled = (Get-Date -Hour $t.Hour -Minute $t.Minute -Second 0)
-        if ($scheduled -gt $now) { $scheduled } else { $null }
-    } | Where-Object { $_ -ne $null }
-    
-    if ($todayRestarts.Count -gt 0) {
-        return ($todayRestarts | Sort-Object)[0]
-    } else {
-        # Next day's first restart
-        $t = [datetime]::ParseExact($RestartTimes[0], 'HH:mm', $null)
-        return ((Get-Date).AddDays(1).Date.AddHours($t.Hour).AddMinutes($t.Minute))
-    }
-}
-
-# --- RESTART WARNING SYSTEM ---
-$restartWarningDefs = @(
-    @{ key = 'restartWarning15'; minutes = 15 },
-    @{ key = 'restartWarning5'; minutes = 5 },
-    @{ key = 'restartWarning1'; minutes = 1 }
-)
-
-$restartWarningSent = @{}
-$nextRestartTime = Get-NextScheduledRestart $restartTimes
-foreach ($def in $restartWarningDefs) { $restartWarningSent[$def.key] = $false }
-$restartPerformedTime = $null
-
-Write-Log "[INFO] Next scheduled restart: $($nextRestartTime.ToString('yyyy-MM-dd HH:mm:ss'))"
-
-# --- HELPER FUNCTIONS FOR MAIN LOOP ---
-function Invoke-ImmediateUpdate {
-    param(
-        [string]$SteamCmdPath,
-        [string]$ServerDirectory,
-        [string]$AppId,
-        [string]$ServiceName
-    )
-    
-    Write-Log "[UPDATE] Starting immediate update"
-    
-    # Ensure SteamCMD path is directory format for Update-GameServer
-    $steamCmdDirectory = if ($SteamCmdPath -like "*steamcmd.exe") {
-        Split-Path $SteamCmdPath -Parent
-    } else {
-        $SteamCmdPath
-    }
-    
-    # Create backup before update
-    Write-Log "[UPDATE] Creating backup before update"
-    $backupResult = Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups $maxBackups -CompressBackups $compressBackups
-    
-    if ($backupResult.Success) {
-        Write-Log "[UPDATE] Backup created successfully"
-        
-        # Stop service if running
-        if (Test-ServiceRunning $ServiceName) {
-            Stop-GameService -ServiceName $ServiceName -Reason "update"
-        }
-        
-        # Perform update
-        $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $ServerDirectory -AppId $AppId -ServiceName $ServiceName
-        
-        if ($updateResult.Success) {
-            Write-Log "[UPDATE] Server updated successfully"
-            Send-Notification admin "updateCompleted" @{}
-            
-            # Start service after update
-            Start-GameService -ServiceName $ServiceName -Context "post-update"
-        } else {
-            Write-Log "[ERROR] Update failed: $($updateResult.Error)" -Level Error
-            Send-Notification admin "updateFailed" @{ error = $updateResult.Error }
-        }
-    } else {
-        Write-Log "[ERROR] Pre-update backup failed: $($backupResult.Error)" -Level Error
-        Send-Notification admin "backupFailed" @{ error = $backupResult.Error }
-    }
-}
+# --- INITIALIZE RESTART WARNING SYSTEM ---
+$restartWarningSystem = Initialize-RestartWarningSystem -RestartTimes $restartTimes
 
 # --- STARTUP INITIALIZATION ---
-# Check for first install
-$manifestPath = Join-Path $serverDir "steamapps/appmanifest_$appId.acf"
-$firstInstall = $false
+# Check for first install using installation module
+if (Test-FirstInstall -ServerDirectory $serverDir -AppId $appId) {
+    Write-Log "[INFO] First install required, starting installation process"
+    
+    $installResult = Invoke-FirstInstall -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+    
+    if ($installResult.Success) {
+        if ($installResult.RequireRestart) {
+            Write-Log "[INFO] =========================================="
+            Write-Log "[INFO] FIRST INSTALLATION COMPLETED SUCCESSFULLY!"
+            Write-Log "[INFO] =========================================="
+            Write-Log "[INFO] "
+            Write-Log "[INFO] IMPORTANT NEXT STEPS:"
+            Write-Log "[INFO] "
+            Write-Log "[INFO] 1. Configure your server in file:" 
+            Write-Log "[INFO]    C:\scum\server\SCUM\Saved\Config\WindowsServer\ServerSettings.ini"
+            Write-Log "[INFO] "
+            Write-Log "[INFO] 2. Create Windows service using nssm.exe:"
+            Write-Log "[INFO]    nssm.exe install SCUMSERVER C:\scum\server\SCUM\Binaries\Win64\SCUMServer.exe"
+            Write-Log "[INFO] "
+            Write-Log "[INFO] 3. Run this script again to start server monitoring"
+            Write-Log "[INFO] "
+            Write-Log "[INFO] =========================================="
+            
+            # Give a moment for notifications to be sent and user to read
+            Start-Sleep -Seconds 3
+            Write-Host ""
+            Write-Host "Press ENTER to exit..." -ForegroundColor Yellow
+            Read-Host
+            exit 0
+        }
+    } else {
+        Write-Log "[ERROR] First install failed: $($installResult.Error)" -Level Error
+        # Don't exit on failure, allow manual intervention
+    }
+    
+    $firstInstall = $true
+} else {
+    $firstInstall = $false
+}
 
 # Initialize SteamCMD directory for later use
 $global:SteamCmdDirectory = if ($steamCmd -like "*steamcmd.exe") {
     Split-Path $steamCmd -Parent
 } else {
     $steamCmd
-}
-
-if (!(Test-PathExists $manifestPath) -or !(Test-PathExists $serverDir)) {
-    Write-Log "[INFO] Server files not found, performing first install"
-    Send-Notification admin "firstInstall" @{}
-    
-    # Check if SteamCMD exists, if not download it
-    $steamCmdExe = Join-Path $steamCmd "steamcmd.exe"
-    if (!(Test-PathExists $steamCmdExe)) {
-        Write-Log "[INFO] SteamCMD not found, downloading from Steam..."
-        
-        # Get the directory part of steamCmd path (remove steamcmd.exe if present)
-        $steamCmdDir = if ($steamCmd -like "*steamcmd.exe") {
-            Split-Path $steamCmd -Parent
-        } else {
-            $steamCmd
-        }
-        
-        # Create SteamCMD directory if it doesn't exist
-        if (!(Test-PathExists $steamCmdDir)) {
-            try {
-                New-Item -Path $steamCmdDir -ItemType Directory -Force | Out-Null
-                Write-Log "[INFO] Created SteamCMD directory: $steamCmdDir"
-            } catch {
-                Write-Log "[ERROR] Failed to create SteamCMD directory: $($_.Exception.Message)" -Level Error
-                Send-Notification admin "firstInstallFailed" @{ error = "Failed to create SteamCMD directory" }
-                return
-            }
-        }
-        
-        # Download SteamCMD
-        try {
-            $steamCmdZipUrl = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
-            $steamCmdZipPath = Join-Path $steamCmdDir "steamcmd.zip"
-            
-            Write-Log "[INFO] Downloading SteamCMD from: $steamCmdZipUrl"
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($steamCmdZipUrl, $steamCmdZipPath)
-            Write-Log "[INFO] SteamCMD downloaded successfully"
-            
-            # Extract SteamCMD
-            Write-Log "[INFO] Extracting SteamCMD..."
-            Add-Type -AssemblyName System.IO.Compression.FileSystem
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($steamCmdZipPath, $steamCmdDir)
-            
-            # Remove zip file
-            Remove-Item $steamCmdZipPath -Force
-            Write-Log "[INFO] SteamCMD extracted and ready"
-            
-            # Update steamCmdExe path for verification
-            $steamCmdExe = Join-Path $steamCmdDir "steamcmd.exe"
-            
-            # Verify steamcmd.exe exists
-            if (Test-PathExists $steamCmdExe) {
-                Write-Log "[INFO] SteamCMD installation verified at: $steamCmdExe"
-            } else {
-                throw "SteamCMD executable not found after extraction"
-            }
-            
-        } catch {
-            Write-Log "[ERROR] Failed to download/extract SteamCMD: $($_.Exception.Message)" -Level Error
-            Send-Notification admin "firstInstallFailed" @{ error = "Failed to download SteamCMD: $($_.Exception.Message)" }
-            return
-        }
-    } else {
-        Write-Log "[INFO] SteamCMD found at: $steamCmdExe"
-    }
-    
-    # Create server directory if it doesn't exist
-    if (!(Test-PathExists $serverDir)) {
-        Write-Log "[INFO] Creating server directory: $serverDir"
-        try {
-            New-Item -Path $serverDir -ItemType Directory -Force | Out-Null
-            Write-Log "[INFO] Server directory created successfully"
-        } catch {
-            Write-Log "[ERROR] Failed to create server directory: $($_.Exception.Message)" -Level Error
-            Send-Notification admin "firstInstallFailed" @{ error = "Failed to create server directory" }
-            return
-        }
-    }
-    
-    # Now download the server
-    Write-Log "[INFO] Downloading SCUM server files via SteamCMD..."
-    
-    # Get the directory part of steamCmd path for Update-GameServer
-    $steamCmdDirectory = if ($steamCmd -like "*steamcmd.exe") {
-        Split-Path $steamCmd -Parent
-    } else {
-        $steamCmd
-    }
-    
-    $updateResult = Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName -SkipServiceStart:$true
-    
-    if ($updateResult.Success) {
-        Write-Log "[INFO] First install completed successfully"
-        Send-Notification admin "firstInstallComplete" @{
-        }
-        
-        # --- Start server to generate config files ---
-        $scumExe = Join-Path $serverDir "SCUM\Binaries\Win64\SCUMServer.exe"
-        $configIni = Join-Path $serverDir "SCUM\Saved\Config\WindowsServer\ServerSettings.ini"
-        $logFile = Join-Path $serverDir "SCUM\Saved\Logs\SCUM.log"
-        $saveFilesDir = Join-Path $serverDir "SCUM\Saved\SaveFiles"
-        if (Test-Path $scumExe) {
-            Write-Log "[INFO] Launching SCUMServer.exe to generate configuration files..."
-            $proc = Start-Process -FilePath $scumExe -ArgumentList "-log" -PassThru
-            $timeoutSec = 120
-            $elapsed = 0
-            while ((-not (Test-Path $configIni) -or -not (Test-Path $logFile) -or -not (Test-Path $saveFilesDir)) -and $elapsed -lt $timeoutSec) {
-                Start-Sleep -Seconds 2
-                $elapsed += 2
-            }
-            if ((Test-Path $configIni) -and (Test-Path $logFile) -and (Test-Path $saveFilesDir)) {
-                Write-Log "[INFO] All required files and folders have been generated. Stopping server."
-            } else {
-                Write-Log "[WARNING] Not all required files/folders were generated within $timeoutSec seconds. Stopping server."
-            }
-            try {
-                Stop-Process -Id $proc.Id -Force
-                Write-Log "[INFO] SCUMServer.exe has been stopped."
-            } catch {
-                Write-Log "[WARNING] Failed to stop SCUMServer.exe: $($_.Exception.Message)"
-            }
-        } else {
-            Write-Log "[WARNING] SCUMServer.exe not found, cannot generate configuration files."
-        }
-        
-        # After successful first install, restart the script instead of starting server
-        Write-Log "[INFO] First install completed - restarting script to reload all functions"
-        Write-Log "[INFO] Exiting PowerShell"
-        
-        # Give a moment for notifications to be sent
-        Start-Sleep -Seconds 2
-        
-        # Exit PowerShell after first install
-        Write-Log "[INFO] PowerShell exiting for restart after first install"
-        Read-Host "[INFO] Press Enter to exit..."
-        exit 0
-    } else {
-        Write-Log "[ERROR] First install failed: $($updateResult.Error)" -Level Error
-        Send-Notification admin "firstInstallFailed" @{ error = $updateResult.Error }
-        # Don't exit on failure, allow manual intervention
-        return
-    }
-    
-    # This code will only be reached if startserver.bat was not found
-    $global:LastUpdateCheck = Get-Date
-    $firstInstall = $true
-    
-    # Store the SteamCMD directory for later use
-    $global:SteamCmdDirectory = $steamCmdDirectory
 }
 
 # Run initial backup if enabled
@@ -437,11 +278,11 @@ if ($runUpdateOnStart -and -not $firstInstall) {
     
     if ($updateCheck.UpdateAvailable) {
         Write-Log "[INFO] Update available! Installed: $($updateCheck.InstalledBuild) → Latest: $($updateCheck.LatestBuild)"
-        Send-Notification admin "updateAvailable" @{ 
+        Send-UpdateAvailableEvent @{ 
             installed = $updateCheck.InstalledBuild
             latest = $updateCheck.LatestBuild 
         }
-        Update-GameServer -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+        $updateResult = Invoke-ImmediateUpdate -SteamCmdPath $steamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
     } else {
         Write-Log "[INFO] No update available"
     }
@@ -449,11 +290,15 @@ if ($runUpdateOnStart -and -not $firstInstall) {
     $global:LastUpdateCheck = Get-Date
 } elseif (-not $firstInstall) {
     # Start service if not running and not during first install
-    if (-not (Test-ServiceRunning $serviceName)) {
-        Write-Log "[INFO] Starting server service (normal startup)"
-        Start-GameService -ServiceName $serviceName -Context "startup"
+    if ($serviceExists) {
+        if (-not (Test-ServiceRunning $serviceName)) {
+            Write-Log "[INFO] Starting server service (normal startup)"
+            Start-GameService -ServiceName $serviceName -Context "startup"
+        } else {
+            Write-Log "[INFO] Server service is already running"
+        }
     } else {
-        Write-Log "[INFO] Server service is already running"
+        Write-Log "[INFO] Windows service '$serviceName' not found - skipping automatic start"
     }
 }
 
@@ -473,16 +318,25 @@ try {
     $lastLogCheck = Get-Date
     $lastStatusCheck = Get-Date
     
+    # Check if service exists before monitoring
+    $serviceExists = Test-ServiceExists $serviceName
+    if (-not $serviceExists) {
+        Write-Log "[WARNING] Windows service '$serviceName' does not exist!" -Level Warning
+        Write-Log "[WARNING] Monitoring will be limited. Create service using nssm.exe" -Level Warning
+        Write-Log "[WARNING] Continuing in basic mode..." -Level Warning
+    }
+    
     # Initialize service status
-    $serviceRunning = Test-ServiceRunning $serviceName
+    $serviceRunning = if ($serviceExists) { Test-ServiceRunning $serviceName } else { $false }
     
     while ($true) {
-        $now = Get-Date
-        $updateOrRestart = $false
+        try {
+            $now = Get-Date
+            $updateOrRestart = $false
         
         # --- STATUS MONITORING ---
         $shouldCheckStatus = ($now - $lastStatusCheck).TotalMilliseconds -ge $statusCheckInterval
-        if ($shouldCheckStatus) {
+        if ($shouldCheckStatus -and $serviceExists) {
             $serviceRunning = Test-ServiceRunning $serviceName
             $lastStatusCheck = $now
             
@@ -512,20 +366,58 @@ try {
                 }
             }
             
-            # Update performance metrics
-            Update-MonitoringMetrics
+            # Update performance metrics only if server is running
+            if ($serviceRunning) {
+                Update-MonitoringMetrics
+            }
         }
         
-        # --- LOG MONITORING ---
+        # --- SERVER MONITORING ---
         $shouldCheckLogs = ($now - $lastLogCheck).TotalMilliseconds -ge $logCheckInterval
-        if ($shouldCheckLogs -and $serviceRunning) {
-            $logEvents = Read-GameLogs
-            if ($logEvents -and $logEvents.Count -gt 0) {
-                foreach ($logLine in $logEvents) {
-                    # Process-LogEvent now expects raw log lines, not structured events
-                    Process-LogEvent -LogEvent $logLine
+        if ($shouldCheckLogs) {
+            Write-Log "[Main] Calling Update-ServerMonitoring (serviceRunning=$serviceRunning, interval=$logCheckInterval)" -Level Debug
+            # Use monitoring module to update server status and process events
+            # NOTE: This now monitors both service status AND logs, so we call it regardless of service status
+            $processedEvents = Update-ServerMonitoring -ServiceName $serviceName
+            Write-Log "[Main] Update-ServerMonitoring returned $($processedEvents.Count) events" -Level Debug
+            
+            if ($processedEvents -and $processedEvents.Count -gt 0) {
+                # Debug: Log all events before filtering
+                Write-Log "[Main] Processing $($processedEvents.Count) events from monitoring:" -Level Debug
+                foreach ($event in $processedEvents) {
+                    Write-Log "[Main]   Event: $($event.EventType), IsStateChange: $($event.IsStateChange)" -Level Debug
+                }
+                
+                # Only log state changes and important events (not routine monitoring)
+                $stateChangeEvents = $processedEvents | Where-Object { 
+                    $_.EventType -in @('ServerOnline', 'ServerStarting', 'ServerLoading', 'ServerShuttingDown', 'AdminAction') -and $_.IsStateChange
+                }
+                
+                Write-Log "[Main] Found $($stateChangeEvents.Count) state change events" -Level Debug
+                if ($stateChangeEvents -and $stateChangeEvents.Count -gt 0) {
+                    # Only log state changes, not all events
+                    foreach ($event in $stateChangeEvents) {
+                        Write-Log "[SERVER] $($event.EventType): $($event.Message)"
+                        
+                        # Reset admin restart tracking when server comes online
+                        if ($event.EventType -eq 'ServerOnline' -and $global:AdminRestartInProgress) {
+                            Write-Log "[AdminCommands] Server came online after admin restart - tracking completed"
+                            $global:AdminRestartInProgress = $false
+                        }
+                        
+                        # Reset service start tracking when server comes online  
+                        if ($event.EventType -eq 'ServerOnline' -and $global:ServiceStartInitiated -and -not $global:AdminRestartInProgress) {
+                            Write-Log "[Main] Server came online after startup - tracking completed"
+                            $global:ServiceStartInitiated = $false
+                            $global:ServiceStartContext = ""
+                            $global:ServiceStartTime = $null
+                        }
+                    }
                 }
             }
+            $lastLogCheck = $now
+        } elseif ($shouldCheckLogs) {
+            Write-Log "[Main] No events from monitoring - service not running" -Level Info
             $lastLogCheck = $now
         }
         
@@ -542,20 +434,177 @@ try {
             }
         }
         
-        # --- SERVICE STARTUP MONITORING ---
+        # --- ADMIN SCHEDULED ACTIONS ---
+        # Check for delayed admin restart
+        if ($global:AdminRestartScheduledTime -and $now -ge $global:AdminRestartScheduledTime) {
+            Write-Log "[AdminCommands] Executing scheduled restart"
+            try {
+                Send-AdminRestartImmediateEvent @{}
+                $global:ServerIntentionallyStopped = $false
+                
+                # Create backup before restart
+                try {
+                    $savedDir = Get-ConfigPath -PathKey "savedDir"
+                    $backupRoot = Get-ConfigPath -PathKey "backupRoot"
+                    if ((Test-Path $savedDir) -and (Get-SafeConfigValue $config "compressBackups" $true)) {
+                        Write-Log "[AdminCommands] Creating backup before scheduled restart"
+                        Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups (Get-SafeConfigValue $config "maxBackups" 10) -CompressBackups $true
+                    }
+                } catch {
+                    Write-Log "[AdminCommands] Warning: Could not create backup before scheduled restart - $($_.Exception.Message)" -Level Warning
+                }
+                
+                Restart-GameService -ServiceName $serviceName -Reason "scheduled admin restart" 
+                $global:AdminRestartInProgress = $true  # Mark admin restart in progress
+            } catch {
+                Write-Log "[AdminCommands] Error executing scheduled restart: $($_.Exception.Message)" -Level Error
+                Send-ServerRestartFailedEvent @{ error = $_.Exception.Message }
+            }
+            $global:AdminRestartScheduledTime = $null
+            $global:AdminRestartScheduleTime = $null
+            $global:AdminRestartWarning10Sent = $false
+            $global:AdminRestartWarning5Sent = $false
+            $global:AdminRestartWarning1Sent = $false
+        }
+        
+        # Check for delayed admin stop
+        if ($global:AdminStopScheduledTime -and $now -ge $global:AdminStopScheduledTime) {
+            Write-Log "[AdminCommands] Executing scheduled stop"
+            try {
+                Send-AdminStopImmediateEvent @{}
+                $global:ServerIntentionallyStopped = $true
+                Stop-GameService -ServiceName $serviceName -Reason "scheduled admin stop"
+            } catch {
+                Write-Log "[AdminCommands] Error executing scheduled stop: $($_.Exception.Message)" -Level Error
+            }
+            $global:AdminStopScheduledTime = $null
+            $global:AdminStopScheduleTime = $null
+            $global:AdminStopWarning10Sent = $false
+            $global:AdminStopWarning5Sent = $false
+            $global:AdminStopWarning1Sent = $false
+        }
+        
+        # Check for delayed admin update
+        if ($global:AdminUpdateScheduledTime -and $now -ge $global:AdminUpdateScheduledTime) {
+            Write-Log "[AdminCommands] Executing scheduled update"
+            try {
+                Send-AdminUpdateImmediateEvent @{}
+                
+                # Validate paths
+                $steamCmd = Get-ConfigPath -PathKey "steamCmd"
+                $serverDir = Get-ConfigPath -PathKey "serverDir"
+                
+                if (-not (Test-Path $steamCmd)) {
+                    throw "SteamCMD not found at: $steamCmd"
+                }
+                
+                # Create backup before update
+                try {
+                    $savedDir = Get-ConfigPath -PathKey "savedDir"
+                    $backupRoot = Get-ConfigPath -PathKey "backupRoot"
+                    if ((Test-Path $savedDir) -and (Get-SafeConfigValue $config "compressBackups" $true)) {
+                        Write-Log "[AdminCommands] Creating backup before scheduled update"
+                        Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups (Get-SafeConfigValue $config "maxBackups" 10) -CompressBackups $true
+                    }
+                } catch {
+                    Write-Log "[AdminCommands] Warning: Could not create backup before scheduled update - $($_.Exception.Message)" -Level Warning
+                }
+                
+                # Stop service if running
+                if (Test-ServiceRunning $serviceName) {
+                    Stop-GameService -ServiceName $serviceName -Reason "scheduled update"
+                }
+                
+                # Perform update
+                $updateResult = Update-GameServer -SteamCmdPath $steamCmd -ServerDirectory $serverDir -AppId (Get-SafeConfigValue $config "appId" "3792580") -ServiceName $serviceName
+                
+                if ($updateResult.Success) {
+                    Write-Log "[AdminCommands] Scheduled update completed successfully"
+                    Send-UpdateCompletedEvent @{}
+                    
+                    # Start service after update
+                    Start-GameService -ServiceName $serviceName -Context "post-scheduled-update"
+                } else {
+                    Write-Log "[AdminCommands] Scheduled update failed: $($updateResult.Error)" -Level Error
+                    Send-UpdateFailedEvent @{ error = $updateResult.Error }
+                }
+            } catch {
+                Write-Log "[AdminCommands] Error executing scheduled update: $($_.Exception.Message)" -Level Error
+                Send-UpdateFailedEvent @{ error = $_.Exception.Message }
+            }
+            $global:AdminUpdateScheduledTime = $null
+            $global:AdminUpdateScheduleTime = $null
+            $global:AdminUpdateWarning10Sent = $false
+            $global:AdminUpdateWarning5Sent = $false
+            $global:AdminUpdateWarning1Sent = $false
+        }
+        
+        # --- WARNING SYSTEM FOR SCHEDULED ACTIONS ---
+        # Warning notifications for scheduled restart
+        if ($global:AdminRestartScheduledTime) {
+            $minutesLeft = ($global:AdminRestartScheduledTime - $now).TotalMinutes
+            $originalDelayMinutes = ($global:AdminRestartScheduledTime - $global:AdminRestartScheduleTime).TotalMinutes
+            
+            # Send warnings based on original schedule duration to avoid duplicates:
+            # - For 15+ minute schedules: warn at 10, 5, 1 minute
+            # - For 6-14 minute schedules: warn at 5, 1 minute  
+            # - For 2-5 minute schedules: warn only at 1 minute (no 5-minute warning to avoid duplicate)
+            
+            if ($originalDelayMinutes -gt 14 -and $minutesLeft -le 10 -and $minutesLeft -gt 8 -and -not $global:AdminRestartWarning10Sent) {
+                $global:AdminRestartWarning10Sent = $true
+                Send-AdminRestartWarningEvent @{ minutesLeft = 10 }
+            } elseif ($originalDelayMinutes -gt 5 -and $minutesLeft -le 5 -and $minutesLeft -gt 3 -and -not $global:AdminRestartWarning5Sent) {
+                $global:AdminRestartWarning5Sent = $true
+                Send-AdminRestartWarningEvent @{ minutesLeft = 5 }
+            } elseif ($minutesLeft -le 1 -and -not $global:AdminRestartWarning1Sent) {
+                $global:AdminRestartWarning1Sent = $true
+                Send-AdminRestartWarningEvent @{ minutesLeft = 1 }
+            }
+        }
+        
+        # Warning notifications for scheduled stop
+        if ($global:AdminStopScheduledTime) {
+            $minutesLeft = ($global:AdminStopScheduledTime - $now).TotalMinutes
+            $originalDelayMinutes = ($global:AdminStopScheduledTime - $global:AdminStopScheduleTime).TotalMinutes
+            
+            if ($originalDelayMinutes -gt 14 -and $minutesLeft -le 10 -and $minutesLeft -gt 8 -and -not $global:AdminStopWarning10Sent) {
+                $global:AdminStopWarning10Sent = $true
+                Send-AdminStopWarningEvent @{ minutesLeft = 10 }
+            } elseif ($originalDelayMinutes -gt 5 -and $minutesLeft -le 5 -and $minutesLeft -gt 3 -and -not $global:AdminStopWarning5Sent) {
+                $global:AdminStopWarning5Sent = $true
+                Send-AdminStopWarningEvent @{ minutesLeft = 5 }
+            } elseif ($minutesLeft -le 1 -and -not $global:AdminStopWarning1Sent) {
+                $global:AdminStopWarning1Sent = $true
+                Send-AdminStopWarningEvent @{ minutesLeft = 1 }
+            }
+        }
+        
+        # Warning notifications for scheduled update
+        if ($global:AdminUpdateScheduledTime) {
+            $minutesLeft = ($global:AdminUpdateScheduledTime - $now).TotalMinutes
+            $originalDelayMinutes = ($global:AdminUpdateScheduledTime - $global:AdminUpdateScheduleTime).TotalMinutes
+            
+            if ($originalDelayMinutes -gt 14 -and $minutesLeft -le 10 -and $minutesLeft -gt 8 -and -not $global:AdminUpdateWarning10Sent) {
+                $global:AdminUpdateWarning10Sent = $true
+                Send-AdminUpdateWarningEvent @{ minutesLeft = 10 }
+            } elseif ($originalDelayMinutes -gt 5 -and $minutesLeft -le 5 -and $minutesLeft -gt 3 -and -not $global:AdminUpdateWarning5Sent) {
+                $global:AdminUpdateWarning5Sent = $true
+                Send-AdminUpdateWarningEvent @{ minutesLeft = 5 }
+            } elseif ($minutesLeft -le 1 -and -not $global:AdminUpdateWarning1Sent) {
+                $global:AdminUpdateWarning1Sent = $true
+                Send-AdminUpdateWarningEvent @{ minutesLeft = 1 }
+            }
+        }
+        
+        # --- SERVICE STARTUP TIMEOUT MONITORING ---
         if ($global:ServiceStartInitiated) {
             $startupElapsed = ($now - $global:ServiceStartTime).TotalMinutes
             $maxStartupMinutes = Get-SafeConfigValue $config "serverStartupTimeoutMinutes" 10
             
-            if ($serviceRunning) {
-                Write-Log "[SUCCESS] Service startup completed after $([Math]::Round($startupElapsed, 1)) min ($($global:ServiceStartContext))"
-                Send-Notification admin "serverStarted" @{ context = $global:ServiceStartContext }
-                $global:ServiceStartInitiated = $false
-                $global:ServiceStartContext = ""
-                $global:ServiceStartTime = $null
-            } elseif ($startupElapsed -gt $maxStartupMinutes) {
+            # Only check for timeout - success is handled by ServerOnline event processing above
+            if ($startupElapsed -gt $maxStartupMinutes) {
                 Write-Log "[ERROR] Service startup timeout after $maxStartupMinutes minutes" -Level Error
-                Send-Notification admin "startupTimeout" @{ 
+                Send-StartupTimeoutEvent @{ 
                     timeout = $maxStartupMinutes
                     context = $global:ServiceStartContext 
                 }
@@ -588,7 +637,7 @@ try {
                         $global:ConsecutiveRestartAttempts++
                         
                         Write-Log "[AUTO-RESTART] Attempt $($global:ConsecutiveRestartAttempts)/$($global:MaxConsecutiveRestartAttempts)"
-                        Send-Notification admin "serverCrashed" @{ 
+                        Send-ServerCrashedEvent @{ 
                             restartAttempt = $global:ConsecutiveRestartAttempts 
                         }
                         Start-GameService -ServiceName $serviceName -Context "auto-restart"
@@ -598,46 +647,16 @@ try {
         }
         
         # --- SCHEDULED RESTART WARNINGS ---
-        foreach ($def in $restartWarningDefs) {
-            $warnTime = $nextRestartTime.AddMinutes(-$def.minutes)
-            if (-not $restartWarningSent[$def.key] -and $now -ge $warnTime -and $now -lt $warnTime.AddSeconds(30)) {
-                $timeStr = $nextRestartTime.ToString('HH:mm')
-                Send-Notification player $def.key @{ time = $timeStr }
-                Write-Log "[WARN] Sent restart warning: $($def.key)"
-                $restartWarningSent[$def.key] = $true
-            }
-        }
+        $restartWarningSystem = Update-RestartWarnings -WarningState $restartWarningSystem -CurrentTime $now
         
         # --- SCHEDULED RESTART EXECUTION ---
-        if (($restartPerformedTime -ne $nextRestartTime) -and $now -ge $nextRestartTime -and $now -lt $nextRestartTime.AddMinutes(1)) {
-            # Check if restart should be skipped
-            if ($global:SkipNextScheduledRestart) {
-                Write-Log "[RESTART] Skipping scheduled restart as requested"
-                Send-Notification admin "otherEvent" @{ 
-                    event = ":fast_forward: Scheduled restart at $($nextRestartTime.ToString('HH:mm:ss')) was skipped as requested" 
-                }
-                
-                # Reset skip flag and move to next restart
+        if (Test-ScheduledRestartDue -WarningState $restartWarningSystem -CurrentTime $now) {
+            $skipThisRestart = $global:SkipNextScheduledRestart
+            $restartWarningSystem = Invoke-ScheduledRestart -WarningState $restartWarningSystem -ServiceName $serviceName -SkipRestart $skipThisRestart
+            
+            if ($skipThisRestart) {
                 $global:SkipNextScheduledRestart = $false
-                $restartPerformedTime = $nextRestartTime
-                $nextRestartTime = Get-NextScheduledRestart $restartTimes
-                foreach ($def in $restartWarningDefs) { $restartWarningSent[$def.key] = $false }
-                
-                Write-Log "[RESTART] Next scheduled restart: $($nextRestartTime.ToString('yyyy-MM-dd HH:mm:ss'))"
             } else {
-                Write-Log "[RESTART] Executing scheduled restart"
-                Send-Notification admin "scheduledRestart" @{ time = $nextRestartTime.ToString('HH:mm:ss') }
-                
-                # Create backup before restart
-                Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups $maxBackups -CompressBackups $compressBackups
-                
-                # Restart service
-                Restart-GameService -ServiceName $serviceName -Reason "scheduled restart"
-                
-                # Update restart tracking
-                $restartPerformedTime = $nextRestartTime
-                $nextRestartTime = Get-NextScheduledRestart $restartTimes
-                foreach ($def in $restartWarningDefs) { $restartWarningSent[$def.key] = $false }
                 $global:LastRestartTime = $now
                 $updateOrRestart = $true
             }
@@ -666,19 +685,19 @@ try {
                 
                 if (-not $serviceRunning) {
                     # Server is offline, update immediately
-                    Send-Notification admin "updateAvailable" @{ 
+                    Send-UpdateAvailableEvent @{ 
                         installed = $updateCheck.InstalledBuild
                         latest = $updateCheck.LatestBuild 
                     }
-                    Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+                    $updateResult = Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
                 } else {
                     # Server is online, schedule update
                     $global:UpdateScheduledTime = $now.AddMinutes($updateDelayMinutes)
-                    Send-Notification admin "updateAvailable" @{ 
+                    Send-UpdateAvailableEvent @{ 
                         installed = $updateCheck.InstalledBuild
                         latest = $updateCheck.LatestBuild 
+                        delayMinutes = $updateDelayMinutes
                     }
-                    Send-Notification player "updateAvailable" @{ delayMinutes = $updateDelayMinutes }
                 }
             }
             $global:LastUpdateCheck = $now
@@ -689,11 +708,11 @@ try {
             $updateDelay = ($global:UpdateScheduledTime - $now).TotalMinutes
             
             if ($updateDelay -le 5.5 -and $updateDelay -gt 4.5 -and -not $global:UpdateWarning5Sent) {
-                Send-Notification player "updateWarning" @{ delayMinutes = 5 }
+                Send-AdminUpdateWarningEvent @{ delayMinutes = 5 }
                 $global:UpdateWarning5Sent = $true
             } elseif ($now -ge $global:UpdateScheduledTime) {
                 Write-Log "[UPDATE] Executing scheduled update"
-                Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
+                $updateResult = Invoke-ImmediateUpdate -SteamCmdPath $global:SteamCmdDirectory -ServerDirectory $serverDir -AppId $appId -ServiceName $serviceName
                 $global:UpdateScheduledTime = $null
                 $global:UpdateWarning5Sent = $false
                 $updateOrRestart = $true
@@ -702,13 +721,27 @@ try {
         
         # --- ADAPTIVE SLEEP ---
         $sleepMs = switch ($true) {
-            ($global:ServiceStartInitiated) { 500 }  # Fast monitoring during startup
-            ($updateOrRestart) { 500 }  # Fast monitoring during updates/restarts
-            ($serviceRunning) { 2000 }  # Slower monitoring when stable
+            ($global:ServiceStartInitiated -eq $true) { 500 }  # Fast monitoring during startup
+            ($updateOrRestart -eq $true) { 500 }  # Fast monitoring during updates/restarts
+            ($serviceRunning -eq $true) { 2000 }  # Slower monitoring when stable
             default { 1000 }  # Default monitoring speed
         }
         
+        # Ensure $sleepMs is a single integer value
+        if ($sleepMs -is [array]) {
+            $sleepMs = [int]($sleepMs[0])
+        } else {
+            $sleepMs = [int]$sleepMs
+        }
         Start-Sleep -Milliseconds $sleepMs
+        
+        } catch {
+            Write-Log "[ERROR] Error in main loop iteration: $($_.Exception.Message)" -Level Error
+            Write-Log "[ERROR] Stack trace: $($_.ScriptStackTrace)" -Level Error
+            
+            # Sleep and continue to next iteration
+            Start-Sleep -Seconds 5
+        }
     }
 } catch {
     Write-Log "[ERROR] Critical error in main loop: $($_.Exception.Message)" -Level Error

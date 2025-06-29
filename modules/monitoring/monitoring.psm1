@@ -13,24 +13,47 @@ $script:PerformanceHistory = @()
 $script:HealthCheckHistory = @()
 $script:LogFilePath = $null
 
+# Server status management variables - moved from logreader
+$script:CurrentServerStatus = @{
+    Status = "Unknown"
+    Phase = "Unknown"
+    LastActivity = $null
+    PlayerCount = 0
+    IsOnline = $false
+    Message = "Initial state"
+    TimeSinceLastActivity = 999
+    PerformanceStats = $null
+    PerformanceSummary = $null
+}
+$script:HighestStatusReached = "Unknown"
+$script:FirstOnlineNotificationSent = $false
+$script:ManagerStartTime = Get-Date
+$script:LogReaderModule = $null
+
 function Initialize-MonitoringModule {
     <#
     .SYNOPSIS
-    Initialize monitoring module
+    Initialize monitoring module with server status management
     .PARAMETER Config
     Configuration object
     .PARAMETER LogPath
     Path to SCUM log file
+    .PARAMETER LogReaderModule
+    Reference to LogReader module for parsing
     #>
     param(
         [Parameter(Mandatory)]
         [object]$Config,
         
         [Parameter()]
-        [string]$LogPath
+        [string]$LogPath,
+        
+        [Parameter()]
+        [object]$LogReaderModule
     )
     
     $script:MonitoringConfig = $Config
+    $script:LogReaderModule = $LogReaderModule
     
     # Use centralized path management if available
     $resolvedLogPath = Get-ConfigPath "logPath" -ErrorAction SilentlyContinue
@@ -40,7 +63,20 @@ function Initialize-MonitoringModule {
         $script:LogFilePath = $LogPath
     }
     
-    Write-Log "[Monitoring] Module initialized with log path: $($script:LogFilePath)"
+    # Initialize server status from recent log data if available
+    if ($script:LogFilePath -and (Test-PathExists $script:LogFilePath)) {
+        $recentLines = Get-Content $script:LogFilePath -Tail 100 -ErrorAction SilentlyContinue
+        if ($recentLines) {
+            $analysis = $LogReaderModule.Analyze-RecentLogLines($recentLines)
+            if ($analysis.LastEventType -ne "Unknown") {
+                Update-ServerStatusFromEvent -EventType $analysis.LastEventType -EventData $analysis
+                Write-Log "[Monitoring] Initial server status determined from recent logs: $($script:CurrentServerStatus.Status)"
+            }
+        }
+    }
+    
+    Write-Log "[Monitoring] Module initialized with server status management"
+    Write-Log "[Monitoring] Log path: $($script:LogFilePath)"
     Write-Log "[Monitoring] Performance alert threshold: $(Get-SafeConfigValue $Config "performanceAlertThreshold" "Poor")"
 }
 
@@ -557,6 +593,262 @@ function Update-MonitoringMetrics {
     }
 }
 
+function Update-ServerStatusFromEvent {
+    <#
+    .SYNOPSIS
+    Update server status based on parsed log event
+    .PARAMETER EventType
+    Type of event from log parser
+    .PARAMETER EventData
+    Additional event data
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$EventType,
+        
+        [Parameter()]
+        [hashtable]$EventData = @{
+        }
+    )
+    
+    $previousStatus = $script:CurrentServerStatus.Status
+    
+    # Status priority for regression prevention
+    $statusPriority = @{
+        "Unknown" = 0
+        "Offline" = 1
+        "Starting" = 2
+        "Loading" = 3
+        "Online" = 4
+        "Shutting Down" = 5
+    }
+    
+    $newStatus = $null
+    
+    switch ($EventType) {
+        "ServerStarting" {
+            $newStatus = "Starting"
+            $script:CurrentServerStatus.Phase = "Initializing"
+            $script:CurrentServerStatus.Message = "Server starting up"
+            $script:CurrentServerStatus.IsOnline = $false
+        }
+        "ServerLoading" {
+            $newStatus = "Loading"
+            $script:CurrentServerStatus.Phase = "Loading World"
+            $script:CurrentServerStatus.Message = "Loading game world"
+            $script:CurrentServerStatus.IsOnline = $false
+        }
+        "ServerOnline" {
+            $newStatus = "Online"
+            $script:CurrentServerStatus.Phase = "Online"
+            $script:CurrentServerStatus.Message = "Server running normally"
+            $script:CurrentServerStatus.IsOnline = $true
+            
+            # Update performance data if available
+            if ($EventData.PerformanceStats) {
+                $script:CurrentServerStatus.PerformanceStats = $EventData.PerformanceStats
+                $script:CurrentServerStatus.PlayerCount = $EventData.PerformanceStats.PlayerCount
+            }
+        }
+        "ServerShuttingDown" {
+            $newStatus = "Shutting Down"
+            $script:CurrentServerStatus.Phase = "Shutting Down"
+            $script:CurrentServerStatus.Message = "Server shutting down"
+            $script:CurrentServerStatus.IsOnline = $false
+        }
+        "ServerOffline" {
+            $newStatus = "Offline"
+            $script:CurrentServerStatus.Phase = "Offline"
+            $script:CurrentServerStatus.Message = "Server stopped"
+            $script:CurrentServerStatus.IsOnline = $false
+            $script:CurrentServerStatus.PlayerCount = 0
+        }
+    }
+    
+    # Apply status change with regression prevention
+    if ($newStatus) {
+        $currentPriority = $statusPriority[$newStatus]
+        $highestPriority = $statusPriority[$script:HighestStatusReached]
+        
+        # Allow progression or specific transitions
+        if ($currentPriority -ge $highestPriority -or 
+            $newStatus -eq "Shutting Down" -or 
+            $newStatus -eq "Offline") {
+            
+            $script:CurrentServerStatus.Status = $newStatus
+            $script:CurrentServerStatus.LastActivity = Get-Date
+            
+            # Update highest reached status (but not for shutdowns)
+            if ($newStatus -notin @("Shutting Down", "Offline")) {
+                $script:HighestStatusReached = $newStatus
+            }
+            
+            # Send notifications on status change
+            if ($newStatus -ne $previousStatus) {
+                Write-Log "[Monitoring] Server status change: $previousStatus → $newStatus"
+                Send-StatusChangeNotification -NewStatus $newStatus -PreviousStatus $previousStatus -EventData $EventData
+            }
+        }
+    }
+    
+    # Update time since last activity
+    if ($script:CurrentServerStatus.LastActivity) {
+        $timeDiff = (Get-Date) - $script:CurrentServerStatus.LastActivity
+        $script:CurrentServerStatus.TimeSinceLastActivity = $timeDiff.TotalMinutes
+    }
+}
+
+function Send-StatusChangeNotification {
+    <#
+    .SYNOPSIS
+    Send notifications based on server status changes
+    .PARAMETER NewStatus
+    New server status
+    .PARAMETER PreviousStatus
+    Previous server status
+    .PARAMETER EventData
+    Additional event data
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$NewStatus,
+        
+        [Parameter()]
+        [string]$PreviousStatus = "",
+        
+        [Parameter()]
+        [hashtable]$EventData = @{
+        }
+    )
+    
+    # Check if this is a manager startup scenario for Online status
+    $timeSinceManagerStart = (Get-Date) - $script:ManagerStartTime
+    $isRecentManagerStart = $timeSinceManagerStart.TotalMinutes -lt 2
+    $skipOnlineNotification = ($NewStatus -eq "Online" -and $PreviousStatus -eq "Unknown" -and $isRecentManagerStart -and -not $script:FirstOnlineNotificationSent)
+    
+    if ($skipOnlineNotification) {
+        Write-Log "[Monitoring] Skipping first Online notification due to manager startup"
+        $script:FirstOnlineNotificationSent = $true
+        return
+    }
+    
+    # Send notification based on the new status
+    switch ($NewStatus) {
+        "Starting" {
+            Write-Log "[Monitoring] Server startup detected from logs"
+            Send-Notification admin "serverStarting" @{ reason = "server initialization detected in logs" }
+            Send-Notification player "serverStarting" @{
+            }
+        }
+        "Loading" {
+            Write-Log "[Monitoring] Server loading detected from logs"
+            Send-Notification admin "serverLoading" @{ reason = "world loading detected in logs" }
+            Send-Notification player "serverLoading" @{
+            }
+        }
+        "Online" {
+            Write-Log "[Monitoring] Server online detected from logs"
+            Send-Notification admin "serverOnline" @{ reason = "server ready for connections (logs)" }
+            Send-Notification player "serverOnline" @{
+            }
+            $script:FirstOnlineNotificationSent = $true
+        }
+        "Shutting Down" {
+            Write-Log "[Monitoring] Server shutting down detected from logs"
+            Send-Notification admin "serverStopped" @{ context = "shutdown detected in logs" }
+            Send-Notification player "serverOffline" @{
+            }
+        }
+        "Offline" {
+            Write-Log "[Monitoring] Server offline detected from logs"
+            Send-Notification admin "serverOffline" @{ reason = "server shutdown confirmed (logs)" }
+            Send-Notification player "serverOffline" @{
+            }
+        }
+    }
+}
+
+function Get-ServerStatus {
+    <#
+    .SYNOPSIS
+    Get current server status
+    .RETURNS
+    Hashtable with current server status
+    #>
+    
+    return @{
+        Status = $script:CurrentServerStatus.Status
+        Phase = $script:CurrentServerStatus.Phase
+        LastActivity = $script:CurrentServerStatus.LastActivity
+        PlayerCount = $script:CurrentServerStatus.PlayerCount
+        IsOnline = $script:CurrentServerStatus.IsOnline
+        Message = $script:CurrentServerStatus.Message
+        TimeSinceLastActivity = $script:CurrentServerStatus.TimeSinceLastActivity
+        PerformanceStats = $script:CurrentServerStatus.PerformanceStats
+        PerformanceSummary = $script:CurrentServerStatus.PerformanceSummary
+    }
+}
+
+function Update-ServerMonitoring {
+    <#
+    .SYNOPSIS
+    Update server monitoring by processing new log events
+    .RETURNS
+    Array of processed events with IsStateChange property
+    #>
+    
+    if (-not $script:LogReaderModule) {
+        Write-Log "[Monitoring] LogReader module not available" -Level Warning
+        return @()
+    }
+    
+    try {
+        # Get new parsed events from log reader
+        $newEvents = $script:LogReaderModule.Read-GameLogs()
+        
+        # Track previous status for state change detection
+        $previousStatus = $script:CurrentServerStatus.Status
+        
+        # Process each event to update server status and add IsStateChange property
+        $processedEvents = @()
+        foreach ($event in $newEvents) {
+            # Update server status first
+            Update-ServerStatusFromEvent -EventType $event.EventType -EventData $event.Data
+            
+            # Check if this event caused a state change
+            $currentStatus = $script:CurrentServerStatus.Status
+            $isStateChange = ($currentStatus -ne $previousStatus)
+            
+            # Create enhanced event with IsStateChange property
+            $enhancedEvent = @{
+                EventType = $event.EventType
+                Data = $event.Data
+                RawLine = $event.RawLine
+                Timestamp = $event.Timestamp
+                IsStateChange = $isStateChange
+                Message = "Server status: $currentStatus"
+            }
+            
+            $processedEvents += $enhancedEvent
+            
+            # Check for performance alerts if this is a performance event
+            if ($event.EventType -eq "ServerOnline" -and $event.Data.PerformanceStats) {
+                Test-PerformanceAlert -Metrics $event.Data.PerformanceStats
+            }
+            
+            # Update previous status for next iteration
+            $previousStatus = $currentStatus
+        }
+        
+        return $processedEvents
+        
+    } catch {
+        Write-Log "[Monitoring] Error updating server monitoring: $($_.Exception.Message)" -Level Error
+        return @()
+    }
+}
+
+# ...existing code...
 # Export functions
 Export-ModuleMember -Function @(
     'Initialize-MonitoringModule',
@@ -567,5 +859,9 @@ Export-ModuleMember -Function @(
     'Get-PerformanceSummary',
     'Test-PerformanceAlert',
     'Send-PerformanceAlert',
-    'Update-MonitoringMetrics'
+    'Update-MonitoringMetrics',
+    'Update-ServerStatusFromEvent',
+    'Send-StatusChangeNotification',
+    'Get-ServerStatus',
+    'Update-ServerMonitoring'
 )
