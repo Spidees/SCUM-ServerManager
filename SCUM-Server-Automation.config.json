@@ -2,7 +2,7 @@
   "_comment": "SCUM Server Automation - Dedicated Server Management for Windows",
   
   "_comment_core_paths": "=== Core Paths & Service Configuration ===",
-  "serviceName": "SCUMSERVER2",
+  "serviceName": "SCUMSERVER",
   "backupRoot": "./backups",
   "savedDir": "./server/SCUM/Saved",
   "steamCmd": "./steamcmd/steamcmd.exe",
