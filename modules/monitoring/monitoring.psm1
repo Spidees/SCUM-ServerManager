@@ -3,7 +3,7 @@
 # ==========================
 
 #Requires -Version 5.1
-using module ..\common\common.psm1
+using module ..\..\core\common\common.psm1
 
 # Module variables
 $script:MonitoringConfig = $null
@@ -12,6 +12,7 @@ $script:LastPerformanceStatus = ""
 $script:PerformanceHistory = @()
 $script:HealthCheckHistory = @()
 $script:LogFilePath = $null
+$script:IsInitializing = $false
 
 # Server status management variables - moved from logreader
 $script:CurrentServerStatus = @{
@@ -28,7 +29,6 @@ $script:CurrentServerStatus = @{
 $script:HighestStatusReached = "Unknown"
 $script:FirstOnlineNotificationSent = $false
 $script:ManagerStartTime = Get-Date
-$script:LogReaderModule = $null
 
 function Initialize-MonitoringModule {
     <#
@@ -38,22 +38,16 @@ function Initialize-MonitoringModule {
     Configuration object
     .PARAMETER LogPath
     Path to SCUM log file
-    .PARAMETER LogReaderModule
-    Reference to LogReader module for parsing
     #>
     param(
         [Parameter(Mandatory)]
         [object]$Config,
         
         [Parameter()]
-        [string]$LogPath,
-        
-        [Parameter()]
-        [object]$LogReaderModule
+        [string]$LogPath
     )
     
     $script:MonitoringConfig = $Config
-    $script:LogReaderModule = $LogReaderModule
     
     # Use centralized path management if available
     $resolvedLogPath = Get-ConfigPath "logPath" -ErrorAction SilentlyContinue
@@ -63,16 +57,45 @@ function Initialize-MonitoringModule {
         $script:LogFilePath = $LogPath
     }
     
-    # Initialize server status from recent log data if available
-    if ($script:LogFilePath -and (Test-PathExists $script:LogFilePath)) {
-        $recentLines = Get-Content $script:LogFilePath -Tail 100 -ErrorAction SilentlyContinue
-        if ($recentLines) {
-            $analysis = $LogReaderModule.Analyze-RecentLogLines($recentLines)
-            if ($analysis.LastEventType -ne "Unknown") {
-                Update-ServerStatusFromEvent -EventType $analysis.LastEventType -EventData $analysis
-                Write-Log "[Monitoring] Initial server status determined from recent logs: $($script:CurrentServerStatus.Status)"
+    # Check actual service status first to avoid false notifications from old logs
+    $serviceName = Get-SafeConfigValue $Config "serviceName" "SCUMDedicatedServer"
+    $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    $serviceIsRunning = $service -and $service.Status -eq 'Running'
+    
+    Write-Log "[Monitoring] Checking actual service status: $serviceName"
+    Write-Log "[Monitoring] Service running: $serviceIsRunning"
+    
+    # Initialize server status based on actual service state
+    if ($serviceIsRunning) {
+        # Service is running - check recent logs for current state
+        if ($script:LogFilePath -and (Test-PathExists $script:LogFilePath)) {
+            $recentLines = Get-Content $script:LogFilePath -Tail 100 -ErrorAction SilentlyContinue
+            if ($recentLines) {
+                $analysis = Analyze-RecentLogLines -LogLines $recentLines
+                if ($analysis.LastEventType -and $analysis.LastEventType -ne "Unknown") {
+                    # Set initialization flag to prevent notifications during startup
+                    $script:IsInitializing = $true
+                    Update-ServerStatusFromEvent -EventType $analysis.LastEventType -EventData $analysis
+                    $script:IsInitializing = $false
+                    Write-Log "[Monitoring] Initial server status from logs (service running): $($script:CurrentServerStatus.Status)"
+                } else {
+                    # Service running but no recent log activity - assume starting
+                    $script:CurrentServerStatus.Status = "Starting"
+                    $script:CurrentServerStatus.Phase = "Unknown"
+                    $script:CurrentServerStatus.IsOnline = $false
+                    $script:CurrentServerStatus.Message = "Service running, status unknown"
+                    Write-Log "[Monitoring] Service running but no recent log activity - status set to Starting"
+                }
             }
         }
+    } else {
+        # Service is not running - set to offline regardless of old logs
+        $script:CurrentServerStatus.Status = "Offline"
+        $script:CurrentServerStatus.Phase = "Offline"
+        $script:CurrentServerStatus.IsOnline = $false
+        $script:CurrentServerStatus.Message = "Service not running"
+        $script:CurrentServerStatus.PlayerCount = 0
+        Write-Log "[Monitoring] Service not running - status set to Offline"
     }
     
     Write-Log "[Monitoring] Module initialized with server status management"
@@ -604,12 +627,19 @@ function Update-ServerStatusFromEvent {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$EventType,
         
         [Parameter()]
         [hashtable]$EventData = @{
         }
     )
+    
+    # Additional safety check
+    if ([string]::IsNullOrWhiteSpace($EventType)) {
+        Write-Log "[Monitoring] Update-ServerStatusFromEvent called with empty EventType, ignoring" -Level Warning
+        return
+    }
     
     $previousStatus = $script:CurrentServerStatus.Status
     
@@ -721,6 +751,12 @@ function Send-StatusChangeNotification {
         }
     )
     
+    # Skip notifications during module initialization to prevent false alerts from old logs
+    if ($script:IsInitializing) {
+        Write-Log "[Monitoring] Skipping notification during initialization: $NewStatus"
+        return
+    }
+    
     # Check if this is a manager startup scenario for Online status
     $timeSinceManagerStart = (Get-Date) - $script:ManagerStartTime
     $isRecentManagerStart = $timeSinceManagerStart.TotalMinutes -lt 2
@@ -760,9 +796,18 @@ function Send-StatusChangeNotification {
             }
         }
         "Offline" {
-            Write-Log "[Monitoring] Server offline detected from logs"
-            Send-Notification admin "serverOffline" @{ reason = "server shutdown confirmed (logs)" }
-            Send-Notification player "serverOffline" @{
+            # Double-check service status before sending offline notification to prevent false alerts
+            $serviceName = Get-SafeConfigValue $script:MonitoringConfig "serviceName" "SCUMDedicatedServer"
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            $serviceIsRunning = $service -and $service.Status -eq 'Running'
+            
+            if ($serviceIsRunning) {
+                Write-Log "[Monitoring] Service still running despite offline log - not sending offline notification"
+            } else {
+                Write-Log "[Monitoring] Server offline confirmed (logs + service check)"
+                Send-Notification admin "serverOffline" @{ reason = "server shutdown confirmed (logs + service)" }
+                Send-Notification player "serverOffline" @{
+                }
             }
         }
     }
@@ -797,14 +842,14 @@ function Update-ServerMonitoring {
     Array of processed events with IsStateChange property
     #>
     
-    if (-not $script:LogReaderModule) {
-        Write-Log "[Monitoring] LogReader module not available" -Level Warning
+    if (-not (Get-Command "Read-GameLogs" -ErrorAction SilentlyContinue)) {
+        Write-Log "[Monitoring] LogReader module functions not available" -Level Warning
         return @()
     }
     
     try {
         # Get new parsed events from log reader
-        $newEvents = $script:LogReaderModule.Read-GameLogs()
+        $newEvents = Read-GameLogs
         
         # Track previous status for state change detection
         $previousStatus = $script:CurrentServerStatus.Status
@@ -812,8 +857,13 @@ function Update-ServerMonitoring {
         # Process each event to update server status and add IsStateChange property
         $processedEvents = @()
         foreach ($event in $newEvents) {
-            # Update server status first
-            Update-ServerStatusFromEvent -EventType $event.EventType -EventData $event.Data
+            # Update server status first (with protection against empty EventType)
+            if ($event.EventType -and $event.EventType.Trim() -ne "") {
+                Update-ServerStatusFromEvent -EventType $event.EventType -EventData $event.Data
+            } else {
+                Write-Log "[Monitoring] Skipping event with empty EventType" -Level Warning
+                continue
+            }
             
             # Check if this event caused a state change
             $currentStatus = $script:CurrentServerStatus.Status
