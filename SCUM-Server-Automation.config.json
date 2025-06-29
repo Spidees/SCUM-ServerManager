@@ -32,7 +32,7 @@
   "_comment_notifications": "=== Notification Behavior Settings ===",
   "_comment_notifications_info": "suppressDuplicateNotifications: Prevent spam notifications | notificationRateLimitMinutes: Rate limit for notifications | adminNotificationAlways: Always send admin notifications | playerNotificationMinimumPlayers: Min players for player notifications",
   "suppressDuplicateNotifications": true,
-  "notificationRateLimitMinutes": 1,
+  "notificationRateLimitMinutes": 0,
   "adminNotificationAlways": true,
   "playerNotificationMinimumPlayers": 0,
   
@@ -46,7 +46,7 @@
   "_comment_log_monitoring_info": "customLogPath: Custom path to SCUM log file (null = auto-detect) | logMonitoringEnabled: Enable log monitoring for server state | logMonitoringIntervalSeconds: Log check interval | preventStatusRegression: Prevent status downgrades without log evidence",
   "customLogPath": null,
   "logMonitoringEnabled": true,
-  "logMonitoringIntervalSeconds": 2,
+  "logMonitoringIntervalSeconds": 1,
   "preventStatusRegression": true,
 
   "_comment_performance": "=== Performance Monitoring Settings ===",
@@ -59,7 +59,7 @@
     "good": 20,
     "fair": 10,
     "poor": 5,
-    "critical": 0
+    "critical": 3
   },
 
   "admin_command_channel": {
@@ -89,7 +89,7 @@
         "enabled": true 
       },
       "serverStarted": { 
-        "title": ":white_check_mark: Server Started", 
+        "title": ":white_check_mark: Service Started", 
         "text": "**Action:** Service started successfully | **Context:** {context} | **Status:** Ready for connections", 
         "color": 3066993, 
         "enabled": true 
@@ -370,13 +370,13 @@
   "player_notification": {
     "enabled": true,
     "method": "bot",
-    "channelIds": [""],
-    "roleIds": [""],
+    "channelIds": [],
+    "roleIds": [],
     "messages": {
       "_comment_server_states": "=== Server State Changes (Player-Friendly) ===",
       "serverOnline": { 
         "title": ":green_circle: Server is Online", 
-        "text": "**Status:** Ready to join!", 
+        "text": "**Server is currently online** | **Status:** Ready to join!", 
         "color": 3066993, 
         "enabled": true 
       },
