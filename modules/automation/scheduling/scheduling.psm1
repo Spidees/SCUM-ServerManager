@@ -118,7 +118,7 @@ function Update-RestartWarnings {
             $CurrentTime -lt $warnTime.AddSeconds(30)) {
             
             $timeStr = $WarningState.NextRestartTime.ToString('HH:mm')
-            Invoke-ServerEvent -EventType $def.key -Context @{ time = $timeStr }
+            Invoke-ServerEvent -EventType $def.key -Context @{ time = $timeStr } | Out-Null
             Write-Log "[Scheduling] Sent restart warning: $($def.key)"
             $WarningState.WarningSent[$def.key] = $true
         }
@@ -179,10 +179,10 @@ function Invoke-ScheduledRestart {
         Write-Log "[Scheduling] Skipping scheduled restart as requested"
         Send-RestartSkippedEvent @{ 
             event = ":fast_forward: Scheduled restart at $($WarningState.NextRestartTime.ToString('HH:mm:ss')) was skipped as requested" 
-        }
+        } | Out-Null
     } else {
         Write-Log "[Scheduling] Executing scheduled restart"
-        Send-ScheduledRestartEvent @{ time = $WarningState.NextRestartTime.ToString('HH:mm:ss') }
+        Send-ScheduledRestartEvent @{ time = $WarningState.NextRestartTime.ToString('HH:mm:ss') } | Out-Null
         
         # Create backup before restart
         $savedDir = Get-ConfigPath -PathKey "savedDir" -ErrorAction SilentlyContinue
@@ -191,11 +191,11 @@ function Invoke-ScheduledRestart {
         $compressBackups = Get-SafeConfigValue $script:SchedulingConfig "compressBackups" $true
         
         if ($savedDir -and $backupRoot) {
-            Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups $maxBackups -CompressBackups $compressBackups
+            Invoke-GameBackup -SourcePath $savedDir -BackupRoot $backupRoot -MaxBackups $maxBackups -CompressBackups $compressBackups | Out-Null
         }
         
         # Restart service
-        Restart-GameService -ServiceName $ServiceName -Reason "scheduled restart"
+        Restart-GameService -ServiceName $ServiceName -Reason "scheduled restart" | Out-Null
     }
     
     # Update restart tracking and move to next restart
