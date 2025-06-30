@@ -647,12 +647,32 @@ try {
         }
         
         # --- SCHEDULED RESTART WARNINGS ---
+        # Ensure $restartWarningSystem is a hashtable (fix for System.Object[] error)
+        if ($restartWarningSystem -is [array]) {
+            Write-Log "[WARNING] restartWarningSystem is an array, taking first element"
+            $restartWarningSystem = $restartWarningSystem[0]
+        }
+        if ($restartWarningSystem -isnot [hashtable]) {
+            Write-Log "[ERROR] restartWarningSystem is not a hashtable, reinitializing"
+            $restartWarningSystem = Initialize-RestartWarningSystem -RestartTimes $restartTimes
+        }
         $restartWarningSystem = Update-RestartWarnings -WarningState $restartWarningSystem -CurrentTime $now
         
         # --- SCHEDULED RESTART EXECUTION ---
+        # Ensure $restartWarningSystem is still a hashtable
+        if ($restartWarningSystem -is [array]) {
+            Write-Log "[WARNING] restartWarningSystem is an array before restart check, taking first element"
+            $restartWarningSystem = $restartWarningSystem[0]
+        }
         if (Test-ScheduledRestartDue -WarningState $restartWarningSystem -CurrentTime $now) {
             $skipThisRestart = $global:SkipNextScheduledRestart
             $restartWarningSystem = Invoke-ScheduledRestart -WarningState $restartWarningSystem -ServiceName $serviceName -SkipRestart $skipThisRestart
+            
+            # Ensure the return value is still a hashtable
+            if ($restartWarningSystem -is [array]) {
+                Write-Log "[WARNING] restartWarningSystem is an array after Invoke-ScheduledRestart, taking first element"
+                $restartWarningSystem = $restartWarningSystem[0]
+            }
             
             if ($skipThisRestart) {
                 $global:SkipNextScheduledRestart = $false
